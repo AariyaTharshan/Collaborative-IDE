@@ -37,9 +37,14 @@ if (!fsSync.existsSync(tempDir)) {
 // Cleanup function for temp files
 const cleanupFile = async (filePath) => {
   try {
-    await fs.unlink(filePath);
+    // Check if file exists before attempting to delete
+    const exists = await fs.access(filePath).then(() => true).catch(() => false);
+    if (exists) {
+      await fs.unlink(filePath);
+    }
   } catch (err) {
-    console.error('Cleanup error:', err);
+    // Silently ignore errors since they're not critical
+    console.debug('Cleanup skipped:', filePath);
   }
 };
 
@@ -48,13 +53,20 @@ const cleanTempDirectory = async () => {
   try {
     const files = await readdir(tempDir);
     await Promise.all(
-      files.map(file => 
-        fs.unlink(path.join(tempDir, file))
-          .catch(err => console.error(`Error deleting ${file}:`, err))
-      )
+      files.map(async file => {
+        const filePath = path.join(tempDir, file);
+        try {
+          const exists = await fs.access(filePath).then(() => true).catch(() => false);
+          if (exists) {
+            await fs.unlink(filePath);
+          }
+        } catch (err) {
+          console.debug('Failed to delete:', file);
+        }
+      })
     );
   } catch (err) {
-    console.error('Error cleaning temp directory:', err);
+    console.debug('Temp directory cleanup skipped');
   }
 };
 
@@ -62,6 +74,7 @@ const cleanTempDirectory = async () => {
 app.post('/compile', async (req, res) => {
   const { code, language, input } = req.body;
   const fileName = `temp_${Date.now()}`;
+  let filesToCleanup = [];
   
   const fileExtensions = {
     javascript: 'js',
@@ -76,11 +89,9 @@ app.post('/compile', async (req, res) => {
   
   try {
     // Write program file
-    await fs.writeFile(filePath, code);
-    
-    // Write input file if input exists
+    filesToCleanup.push(filePath);
     if (input) {
-      await fs.writeFile(inputPath, input);
+      filesToCleanup.push(inputPath);
     }
     
     let execPromise;
@@ -88,25 +99,32 @@ app.post('/compile', async (req, res) => {
     switch(language) {
       case 'javascript':
         execPromise = new Promise((resolve, reject) => {
-          const child = exec(`node "${filePath}"`, { timeout: 5000 }, (error, stdout, stderr) => {
-            cleanupFile(filePath);
-            cleanupFile(inputPath);
-            if (error) reject(stderr);
-            else resolve(stdout);
-          });
+          const filePath = path.join(tempDir, `${fileName}.js`);
+          const inputPath = input ? path.join(tempDir, `${fileName}.input`) : null;
           
-          if (input) {
-            child.stdin.write(input);
-            child.stdin.end();
-          }
+          filesToCleanup.push(filePath);
+          if (inputPath) filesToCleanup.push(inputPath);
+
+          Promise.all([
+            fs.writeFile(filePath, code),
+            input ? fs.writeFile(inputPath, input) : Promise.resolve()
+          ]).then(() => {
+            const child = exec(`node "${filePath}"`, { timeout: 5000 }, (error, stdout, stderr) => {
+              if (error) reject(stderr);
+              else resolve(stdout);
+            });
+            
+            if (input) {
+              child.stdin.write(input);
+              child.stdin.end();
+            }
+          }).catch(reject);
         });
         break;
 
       case 'python':
         execPromise = new Promise((resolve, reject) => {
           const child = exec(`python "${filePath}"`, { timeout: 5000 }, (error, stdout, stderr) => {
-            cleanupFile(filePath);
-            cleanupFile(inputPath);
             if (error) reject(stderr);
             else resolve(stdout);
           });
@@ -132,9 +150,6 @@ app.post('/compile', async (req, res) => {
 
             // Run with input
             const child = exec(outputPath, { timeout: 5000 }, (error, stdout, stderr) => {
-              cleanupFile(filePath);
-              cleanupFile(outputPath);
-              cleanupFile(inputPath);
               if (error) reject(stderr);
               else resolve(stdout);
             });
@@ -144,9 +159,6 @@ app.post('/compile', async (req, res) => {
               child.stdin.end();
             }
           } catch (err) {
-            cleanupFile(filePath);
-            cleanupFile(outputPath);
-            cleanupFile(inputPath);
             reject(err);
           }
         });
@@ -172,9 +184,6 @@ app.post('/compile', async (req, res) => {
 
             // Run with input
             const child = exec(`java -cp "${tempDir}" ${className}`, { timeout: 5000 }, (error, stdout, stderr) => {
-              cleanupFile(javaFilePath);
-              cleanupFile(path.join(tempDir, `${className}.class`));
-              cleanupFile(inputPath);
               if (error) reject(stderr);
               else resolve(stdout);
             });
@@ -184,9 +193,6 @@ app.post('/compile', async (req, res) => {
               child.stdin.end();
             }
           } catch (err) {
-            cleanupFile(javaFilePath);
-            cleanupFile(path.join(tempDir, `${className}.class`));
-            cleanupFile(inputPath);
             reject(err);
           }
         });
@@ -199,14 +205,14 @@ app.post('/compile', async (req, res) => {
 
     const output = await execPromise;
     
-    // Clean the temp directory after successful execution
-    await cleanTempDirectory();
+    // Cleanup files after successful execution
+    await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
     
     res.json({ output });
 
   } catch (error) {
-    // Clean the temp directory even if there's an error
-    await cleanTempDirectory();
+    // Cleanup files even if there's an error
+    await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
     
     res.json({ error: error.toString() });
   }
@@ -215,6 +221,8 @@ app.post('/compile', async (req, res) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+  
+  let currentRoom = null;
 
   // Handle stats requests
   socket.on('get-stats', () => {
@@ -226,6 +234,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join-room', ({ roomId, language, username }) => {
+    // Store current room
+    currentRoom = roomId;
     // Leave previous room if any
     Array.from(socket.rooms).forEach(room => {
       if (room !== socket.id) {
@@ -396,27 +406,34 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    rooms.forEach((room, roomId) => {
+    // Clean up if user was in a room
+    if (currentRoom && rooms.has(currentRoom)) {
+      const room = rooms.get(currentRoom);
       if (room.participants.has(socket.id)) {
         const username = room.participants.get(socket.id);
         room.participants.delete(socket.id);
         
-        io.to(roomId).emit('user-left', {
+        // Notify others in the room
+        io.to(currentRoom).emit('user-left', {
           userId: socket.id,
           username,
           participants: Array.from(room.participants.values())
         });
         
-        // Also notify voice participant left
-        io.to(roomId).emit('voice-participant-left', {
-          userId: socket.id
-        });
-        
+        // Clean up empty rooms
         if (room.participants.size === 0) {
-          rooms.delete(roomId);
+          rooms.delete(currentRoom);
         }
+
+        // Update stats
+        activeUsers--;
+        io.emit('stats-update', {
+          activeUsers,
+          totalSessions,
+          totalLinesOfCode
+        });
       }
-    });
+    }
     console.log('User disconnected:', socket.id);
   });
 });

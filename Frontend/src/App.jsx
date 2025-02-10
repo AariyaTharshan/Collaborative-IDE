@@ -6,8 +6,7 @@ import axios from 'axios';
 import RoomEntry from './components/RoomEntry';
 import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './context/ThemeContext';
-
-const socket = io('http://localhost:3000');
+import HelpPage from './components/HelpPage';
 
 const App = () => {
   const [isInRoom, setIsInRoom] = useState(false);
@@ -24,13 +23,32 @@ const App = () => {
   const [isHost, setIsHost] = useState(false);
   const [programInput, setProgramInput] = useState('');
   const [voiceParticipants, setVoiceParticipants] = useState(new Set());
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   
   const peerRef = useRef(null);
   const { isDark } = useTheme();
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    if (!isInRoom) return;
+    if (!socketRef.current) {
+      socketRef.current = io('http://localhost:3000', {
+        reconnection: false,
+        transports: ['websocket']
+      });
+    }
 
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isInRoom || !socketRef.current) return;
+
+    const socket = socketRef.current;
     socket.emit('join-room', { roomId, language, username });
 
     socket.on('room-state', ({ language: roomLanguage, code: roomCode, participants: roomParticipants, isHost }) => {
@@ -93,21 +111,18 @@ const App = () => {
     });
 
     return () => {
-      socket.off('code-update');
-      socket.off('receive-message');
+      socket.off('room-state');
+      socket.off('error');
       socket.off('user-joined');
       socket.off('user-left');
+      socket.off('code-update');
+      socket.off('receive-message');
       socket.off('incoming-call');
       socket.off('language-changed');
       socket.off('room-ended');
       socket.off('voice-participant-joined');
       socket.off('voice-participant-left');
       socket.off('call-accepted');
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        setStream(null);
-      }
-      handleLeaveCall();
     };
   }, [isInRoom, roomId]);
 
@@ -120,7 +135,7 @@ const App = () => {
 
   const handleCodeChange = (newCode) => {
     setCode(newCode);
-    socket.emit('code-change', { roomId, code: newCode });
+    socketRef.current?.emit('code-change', { roomId, code: newCode });
   };
 
   const handleCompile = async () => {
@@ -139,7 +154,7 @@ const App = () => {
   const sendMessage = (e) => {
     e.preventDefault();
     if (newMessage.trim()) {
-      socket.emit('chat-message', {
+      socketRef.current?.emit('chat-message', {
         roomId,
         message: newMessage
       });
@@ -155,18 +170,18 @@ const App = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
-    socket.emit('leave-room', { roomId });
+    socketRef.current?.emit('leave-room', { roomId });
     setIsInRoom(false);
     setMessages([]);
     setCode('// Start coding here...');
     setOutput('');
     setIsCallActive(false);
-    setPeerRef(null);
+    peerRef.current = null;
   };
 
   const handleEndRoom = () => {
     if (isHost) {
-      socket.emit('end-room', { roomId });
+      socketRef.current?.emit('end-room', { roomId });
       handleLeaveRoom();
     }
   };
@@ -197,7 +212,7 @@ const App = () => {
       });
 
       newPeer.on('signal', (data) => {
-        socket.emit('call-user', {
+        socketRef.current?.emit('call-user', {
           userToCall: roomId,
           signalData: data,
           roomId
@@ -227,7 +242,7 @@ const App = () => {
 
       peerRef.current = newPeer;
       setIsCallActive(true);
-      socket.emit('join-voice', { roomId });
+      socketRef.current?.emit('join-voice', { roomId });
     } catch (err) {
       console.error('Call start error:', err);
       if (err.name === 'NotAllowedError') {
@@ -265,7 +280,7 @@ const App = () => {
       });
 
       newPeer.on('signal', (data) => {
-        socket.emit('answer-call', { signal: data, to: from });
+        socketRef.current?.emit('answer-call', { signal: data, to: from });
       });
 
       newPeer.on('stream', (remoteStream) => {
@@ -292,7 +307,7 @@ const App = () => {
       newPeer.signal(signal);
       peerRef.current = newPeer;
       setIsCallActive(true);
-      socket.emit('join-voice', { roomId });
+      socketRef.current?.emit('join-voice', { roomId });
     } catch (err) {
       console.error('Call accept error:', err);
       if (err.name === 'NotAllowedError') {
@@ -317,7 +332,7 @@ const App = () => {
         setStream(null);
       }
       setIsCallActive(false);
-      socket.emit('leave-voice', { roomId });
+      socketRef.current?.emit('leave-voice', { roomId });
     } catch (err) {
       console.error('Error leaving call:', err);
     }
@@ -325,7 +340,7 @@ const App = () => {
 
   const handleLanguageChange = (newLanguage) => {
     if (isHost) {
-      socket.emit('change-language', { roomId, newLanguage });
+      socketRef.current?.emit('change-language', { roomId, newLanguage });
     }
   };
 
@@ -363,7 +378,7 @@ const App = () => {
             ) : (
               <button
                 onClick={handleLeaveRoom}
-                className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600 transition-colors"
+                className="px-3 py-1.5 bg-red-500 text-white text-sm rounded-md hover:bg-red-600 transition-colors"
               >
                 Leave Room
               </button>
@@ -485,12 +500,23 @@ const App = () => {
                   </span>
                 )}
               </div>
-              <button
-                onClick={handleCompile}
-                className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
-              >
-                Run Code
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsHelpOpen(true)}
+                  className="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Snippets</span>
+                </button>
+                <button
+                  onClick={handleCompile}
+                  className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
+                >
+                  Run Code
+                </button>
+              </div>
             </div>
           </div>
           <div className="h-[calc(100%-4rem)]">
@@ -505,6 +531,142 @@ const App = () => {
                 minimap: { enabled: false },
                 automaticLayout: true,
                 padding: { top: 16, bottom: 16 },
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: true,
+                snippetSuggestions: "inline",
+                wordBasedSuggestions: true,
+                parameterHints: {
+                  enabled: true
+                },
+                suggest: {
+                  showKeywords: true,
+                  showSnippets: true,
+                  showClasses: true,
+                  showFunctions: true,
+                  showVariables: true,
+                  showWords: true,
+                  showMethods: true,
+                },
+                'editor.snippetSuggestions': 'top',
+              }}
+              beforeMount={(monaco) => {
+                monaco.languages.registerCompletionItemProvider('javascript', {
+                  provideCompletionItems: () => {
+                    return {
+                      suggestions: [
+                        {
+                          label: 'cl',
+                          kind: monaco.languages.CompletionItemKind.Snippet,
+                          insertText: 'console.log(${1:value});',
+                          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          detail: 'Console log statement',
+                          documentation: 'Prints to console'
+                        },
+                        {
+                          label: 'fn',
+                          kind: monaco.languages.CompletionItemKind.Snippet,
+                          insertText: [
+                            'function ${1:name}(${2:params}) {',
+                            '\t${3:// code here}',
+                            '}'
+                          ].join('\n'),
+                          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          detail: 'Function declaration'
+                        },
+                        {
+                          label: 'afn',
+                          kind: monaco.languages.CompletionItemKind.Snippet,
+                          insertText: 'const ${1:name} = (${2:params}) => {\n\t${3:// code here}\n}',
+                          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          detail: 'Arrow function'
+                        },
+                      ]
+                    };
+                  }
+                });
+
+                monaco.languages.registerCompletionItemProvider('python', {
+                  provideCompletionItems: () => {
+                    return {
+                      suggestions: [
+                        {
+                          label: 'def',
+                          kind: monaco.languages.CompletionItemKind.Snippet,
+                          insertText: 'def ${1:function_name}(${2:params}):\n\t${3:pass}',
+                          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          detail: 'Function definition'
+                        },
+                        {
+                          label: 'class',
+                          kind: monaco.languages.CompletionItemKind.Snippet,
+                          insertText: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',
+                          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          detail: 'Class definition'
+                        },
+                      ]
+                    };
+                  }
+                });
+
+                monaco.languages.registerCompletionItemProvider('cpp', {
+                  provideCompletionItems: () => {
+                    return {
+                      suggestions: [
+                        {
+                          label: 'cp',
+                          kind: monaco.languages.CompletionItemKind.Snippet,
+                          insertText: [
+                            '#include <bits/stdc++.h>',
+                            'using namespace std;',
+                            '',
+                            'int main() {',
+                            '\tios::sync_with_stdio(0);',
+                            '\tcin.tie(0);',
+                            '\t${1:// code here}',
+                            '\treturn 0;',
+                            '}'
+                          ].join('\n'),
+                          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          detail: 'Competitive programming template'
+                        },
+                      ]
+                    };
+                  }
+                });
+
+                monaco.languages.registerCompletionItemProvider('*', {
+                  triggerCharacters: ['.', ' '],
+                  provideCompletionItems: (model, position) => {
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const wordUntilPosition = model.getWordUntilPosition(position);
+                    
+                    const suggestions = [];
+                    
+                    if (lineContent.includes('for')) {
+                      suggestions.push({
+                        label: 'Loop template',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: '(let i = 0; i < ${1:length}; i++) {\n\t${2:// code}\n}',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        detail: 'For loop with iterator',
+                        sortText: '0'
+                      });
+                    }
+
+                    if (lineContent.includes('array') || lineContent.includes('[]')) {
+                      suggestions.push({
+                        label: 'Array methods',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: '.${1|map,filter,reduce,forEach,find,some,every|}((${2:item}) => ${3:// code})',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        detail: 'Common array methods',
+                        sortText: '0'
+                      });
+                    }
+
+                    return { suggestions };
+                  }
+                });
               }}
             />
           </div>
@@ -530,6 +692,9 @@ const App = () => {
           </div>
         </div>
       </div>
+
+      {/* Add HelpPage component at the end */}
+      <HelpPage isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </div>
   );
 };
