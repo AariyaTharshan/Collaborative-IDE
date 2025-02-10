@@ -8,6 +8,8 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const { promisify } = require('util');
 const readdir = promisify(fsSync.readdir);
+const util = require('util');
+const execAsync = util.promisify(exec);
 
 const app = express();
 const server = http.createServer(app);
@@ -24,8 +26,9 @@ const io = new Server(server, {
 
 const rooms = new Map(); // Store room information
 
-// Add these variables at the top of your server file
-let activeUsers = 0;
+// At the top of the file, update the stats variables
+let totalUsers = 0;  // This will be cumulative
+let activeUsers = 0; // This tracks current active users
 let totalSessions = 0;
 let totalLinesOfCode = 0;
 
@@ -80,98 +83,74 @@ const cleanTempDirectory = async () => {
   }
 };
 
+// Add a function to check and install compilers
+const ensureCompilers = async () => {
+  try {
+    await execAsync('which g++');
+  } catch {
+    console.log('Installing C++ compiler...');
+    await execAsync('apt-get update && apt-get install -y g++');
+  }
+
+  try {
+    await execAsync('which python3');
+  } catch {
+    console.log('Installing Python...');
+    await execAsync('apt-get update && apt-get install -y python3');
+  }
+
+  try {
+    await execAsync('which java');
+  } catch {
+    console.log('Installing Java...');
+    await execAsync('apt-get update && apt-get install -y default-jdk');
+  }
+};
+
 // Handle code compilation
 app.post('/compile', async (req, res) => {
   const { code, language, input } = req.body;
   const fileName = `temp_${Date.now()}`;
   let filesToCleanup = [];
   
-  const fileExtensions = {
-    javascript: 'js',
-    python: 'py',
-    cpp: 'cpp',
-    java: 'java'
-  };
-
-  const ext = fileExtensions[language];
-  const filePath = path.join(tempDir, `${fileName}.${ext}`);
-  const inputPath = path.join(tempDir, `${fileName}.input`);
-  
   try {
-    // Write program file
+    // Create temp directory if it doesn't exist
+    if (!fsSync.existsSync(tempDir)) {
+      fsSync.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const filePath = path.join(tempDir, `${fileName}.${language === 'cpp' ? 'cpp' : language === 'python' ? 'py' : 'js'}`);
     filesToCleanup.push(filePath);
+
+    // Write the code to a file
+    await fs.writeFile(filePath, code);
+
+    // Write input to file if provided
+    let inputPath;
     if (input) {
+      inputPath = path.join(tempDir, `${fileName}.input`);
+      await fs.writeFile(inputPath, input);
       filesToCleanup.push(inputPath);
     }
-    
-    let execPromise;
 
+    let output;
     switch(language) {
       case 'javascript':
-        execPromise = new Promise((resolve, reject) => {
-          const filePath = path.join(tempDir, `${fileName}.js`);
-          const inputPath = input ? path.join(tempDir, `${fileName}.input`) : null;
-          
-          filesToCleanup.push(filePath);
-          if (inputPath) filesToCleanup.push(inputPath);
-
-          Promise.all([
-            fs.writeFile(filePath, code),
-            input ? fs.writeFile(inputPath, input) : Promise.resolve()
-          ]).then(() => {
-            const child = exec(`node "${filePath}"`, { timeout: 5000 }, (error, stdout, stderr) => {
-              if (error) reject(stderr);
-              else resolve(stdout);
-            });
-            
-            if (input) {
-              child.stdin.write(input);
-              child.stdin.end();
-            }
-          }).catch(reject);
-        });
+        output = await execAsync(`node "${filePath}"`, { timeout: 5000 });
         break;
 
       case 'python':
-        execPromise = new Promise((resolve, reject) => {
-          const child = exec(`python "${filePath}"`, { timeout: 5000 }, (error, stdout, stderr) => {
-            if (error) reject(stderr);
-            else resolve(stdout);
-          });
-          
-          if (input) {
-            child.stdin.write(input);
-            child.stdin.end();
-          }
-        });
+        output = await execAsync(`python3 "${filePath}"`, { timeout: 5000 });
         break;
 
       case 'cpp': {
         const outputPath = path.join(tempDir, fileName + (process.platform === 'win32' ? '.exe' : ''));
-        execPromise = new Promise(async (resolve, reject) => {
-          try {
-            // Compile
-            await new Promise((res, rej) => {
-              exec(`g++ "${filePath}" -o "${outputPath}"`, { timeout: 5000 }, (error, stdout, stderr) => {
-                if (error) rej(stderr);
-                else res(stdout);
-              });
-            });
-
-            // Run with input
-            const child = exec(outputPath, { timeout: 5000 }, (error, stdout, stderr) => {
-              if (error) reject(stderr);
-              else resolve(stdout);
-            });
-
-            if (input) {
-              child.stdin.write(input);
-              child.stdin.end();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
+        filesToCleanup.push(outputPath);
+        
+        // Compile
+        await execAsync(`g++ "${filePath}" -o "${outputPath}"`, { timeout: 5000 });
+        // Run
+        output = await execAsync(outputPath, { timeout: 5000 });
         break;
       }
 
@@ -179,33 +158,13 @@ app.post('/compile', async (req, res) => {
         const className = 'Main';
         const javaCode = code.replace(/public\s+class\s+\w+/, `public class ${className}`);
         const javaFilePath = path.join(tempDir, `${className}.java`);
+        filesToCleanup.push(javaFilePath);
         
-        execPromise = new Promise(async (resolve, reject) => {
-          try {
-            await fs.writeFile(javaFilePath, javaCode);
-            
-            // Compile
-            await new Promise((res, rej) => {
-              exec(`javac "${javaFilePath}"`, { timeout: 5000 }, (error) => {
-                if (error) rej(error.message);
-                else res();
-              });
-            });
-
-            // Run with input
-            const child = exec(`java -cp "${tempDir}" ${className}`, { timeout: 5000 }, (error, stdout, stderr) => {
-              if (error) reject(stderr);
-              else resolve(stdout);
-            });
-
-            if (input) {
-              child.stdin.write(input);
-              child.stdin.end();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
+        await fs.writeFile(javaFilePath, javaCode);
+        // Compile
+        await execAsync(`javac "${javaFilePath}"`, { timeout: 5000 });
+        // Run
+        output = await execAsync(`java -cp "${tempDir}" ${className}`, { timeout: 5000 });
         break;
       }
 
@@ -213,22 +172,19 @@ app.post('/compile', async (req, res) => {
         throw new Error('Unsupported language');
     }
 
-    const output = await execPromise;
-    
-    // Cleanup files after successful execution
+    // Cleanup files
     await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
     
-    res.json({ output });
+    res.json({ output: output.stdout });
   } catch (error) {
     console.error('Compilation error:', error);
     
     // Cleanup files even if there's an error
     await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
     
-    // Send a more detailed error message
     res.status(500).json({ 
       error: error.toString(),
-      details: error.message
+      details: error.stderr || error.message
     });
   }
 });
@@ -297,9 +253,11 @@ io.on('connection', (socket) => {
 
     // Update stats when users join rooms
     activeUsers++;
+    totalUsers++;  // Increment total users (cumulative)
     totalSessions++;
     io.emit('stats-update', {
       activeUsers,
+      totalUsers,  // Send total users instead
       totalSessions,
       totalLinesOfCode
     });
@@ -373,10 +331,11 @@ io.on('connection', (socket) => {
         rooms.delete(roomId);
       }
 
-      // Update stats when users leave rooms
+      // Update stats but don't decrease totalUsers
       activeUsers--;
       io.emit('stats-update', {
         activeUsers,
+        totalUsers,  // Keep the cumulative count
         totalSessions,
         totalLinesOfCode
       });
@@ -445,10 +404,11 @@ io.on('connection', (socket) => {
           rooms.delete(currentRoom);
         }
 
-        // Update stats
+        // Update stats but don't decrease totalUsers
         activeUsers--;
         io.emit('stats-update', {
           activeUsers,
+          totalUsers,  // Keep the cumulative count
           totalSessions,
           totalLinesOfCode
         });
@@ -460,6 +420,9 @@ io.on('connection', (socket) => {
 
 // Also clean temp directory when server starts
 cleanTempDirectory().catch(console.error);
+
+// Call ensureCompilers when server starts
+ensureCompilers().catch(console.error);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
