@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Editor } from '@monaco-editor/react';
 import io from 'socket.io-client';
-import Peer from 'simple-peer/simplepeer.min.js';
+import SimplePeer from 'simple-peer';
 import axios from 'axios';
 import RoomEntry from './components/RoomEntry';
 import ThemeToggle from './components/ThemeToggle';
@@ -189,26 +189,38 @@ const App = () => {
   const startCall = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true,
-        video: false  // Explicitly disable video
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: false
       });
 
       if (!mediaStream) {
-        throw new Error('Failed to get audio stream');
+        throw new Error('No media stream available');
       }
 
       setStream(mediaStream);
 
-      const newPeer = new Peer({
+      const newPeer = new SimplePeer({
         initiator: true,
         trickle: false,
         stream: mediaStream,
         config: {
           iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
+            { 
+              urls: [
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+              ]
+            }
           ]
         }
+      });
+
+      newPeer.on('error', (err) => {
+        console.error('Peer error:', err);
       });
 
       newPeer.on('signal', (data) => {
@@ -223,58 +235,57 @@ const App = () => {
         try {
           const audio = new Audio();
           audio.srcObject = remoteStream;
-          audio.addEventListener('canplay', () => {
-            audio.play().catch(err => console.error('Audio play error:', err));
+          audio.play().catch(err => {
+            console.error('Audio play error:', err);
+            document.addEventListener('click', () => {
+              audio.play().catch(console.error);
+            }, { once: true });
           });
         } catch (err) {
-          console.error('Error playing remote stream:', err);
+          console.error('Stream handling error:', err);
         }
-      });
-
-      newPeer.on('error', (err) => {
-        console.error('Peer error:', err);
-        handleLeaveCall();
-      });
-
-      newPeer.on('close', () => {
-        handleLeaveCall();
       });
 
       peerRef.current = newPeer;
       setIsCallActive(true);
       socketRef.current?.emit('join-voice', { roomId });
+
     } catch (err) {
-      console.error('Call start error:', err);
-      if (err.name === 'NotAllowedError') {
-        alert('Microphone access was denied. Please allow microphone access and try again.');
-      } else {
-        alert('Failed to start voice chat. Please try again.');
-      }
-      handleLeaveCall();
+      console.error('Failed to start call:', err);
+      alert('Failed to access microphone. Please ensure microphone permissions are granted.');
     }
   };
 
-  const handleIncomingCall = async (from, signal) => {
+  const handleIncomingCall = async (from, incomingSignal) => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
         video: false
       });
 
-      if (!mediaStream) {
-        throw new Error('Failed to get audio stream');
-      }
-
       setStream(mediaStream);
 
-      const newPeer = new Peer({
+      const newPeer = new SimplePeer({
         initiator: false,
         trickle: false,
         stream: mediaStream,
         config: {
           iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
+            { 
+              urls: [
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+              ]
+            },
+            {
+              urls: 'turn:numb.viagenie.ca',
+              username: 'webrtc@live.com',
+              credential: 'muazkh'
+            }
           ]
         }
       });
@@ -284,58 +295,41 @@ const App = () => {
       });
 
       newPeer.on('stream', (remoteStream) => {
-        try {
-          const audio = new Audio();
-          audio.srcObject = remoteStream;
-          audio.addEventListener('canplay', () => {
-            audio.play().catch(err => console.error('Audio play error:', err));
-          });
-        } catch (err) {
-          console.error('Error playing remote stream:', err);
-        }
+        const audio = new Audio();
+        audio.srcObject = remoteStream;
+        audio.play().catch(err => {
+          console.error('Audio play error:', err);
+          // Try playing on user interaction
+          document.addEventListener('click', () => {
+            audio.play().catch(console.error);
+          }, { once: true });
+        });
       });
 
-      newPeer.on('error', (err) => {
-        console.error('Peer error:', err);
-        handleLeaveCall();
-      });
-
-      newPeer.on('close', () => {
-        handleLeaveCall();
-      });
-
-      newPeer.signal(signal);
+      newPeer.signal(incomingSignal);
       peerRef.current = newPeer;
       setIsCallActive(true);
       socketRef.current?.emit('join-voice', { roomId });
+
     } catch (err) {
-      console.error('Call accept error:', err);
-      if (err.name === 'NotAllowedError') {
-        alert('Microphone access was denied. Please allow microphone access and try again.');
-      } else {
-        alert('Failed to join voice chat. Please try again.');
-      }
-      handleLeaveCall();
+      console.error('Failed to handle incoming call:', err);
+      alert('Failed to access microphone. Please ensure microphone permissions are granted.');
     }
   };
 
   const handleLeaveCall = () => {
-    try {
-      if (peerRef.current) {
-        peerRef.current.destroy();
-        peerRef.current = null;
-      }
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          track.stop();
-        });
-        setStream(null);
-      }
-      setIsCallActive(false);
-      socketRef.current?.emit('leave-voice', { roomId });
-    } catch (err) {
-      console.error('Error leaving call:', err);
+    if (peerRef.current) {
+      peerRef.current.destroy();
+      peerRef.current = null;
     }
+    
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    
+    setIsCallActive(false);
+    socketRef.current?.emit('leave-voice', { roomId });
   };
 
   const handleLanguageChange = (newLanguage) => {

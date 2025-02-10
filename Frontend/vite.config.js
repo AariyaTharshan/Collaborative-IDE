@@ -13,6 +13,11 @@ export default defineConfig({
       'stream': 'stream-browserify',
       'zlib': 'browserify-zlib',
       'util': 'util',
+      'simple-peer': 'simple-peer/simplepeer.min.js',
     }
   },
+  optimizeDeps: {
+    include: ['simple-peer'],
+  },
 })
+
