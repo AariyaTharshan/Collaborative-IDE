@@ -13,7 +13,7 @@ export default {
           secondary: '#2d2d2d',
           accent: '#3d3d3d'
         }
-      }
+      },
     },
   },
   plugins: [],

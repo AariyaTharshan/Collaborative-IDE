@@ -20,6 +20,11 @@ const io = new Server(server, {
 
 const rooms = new Map(); // Store room information
 
+// Add these variables at the top of your server file
+let activeUsers = 0;
+let totalSessions = 0;
+let totalLinesOfCode = 0;
+
 app.use(cors());
 app.use(express.json());
 
@@ -211,6 +216,15 @@ app.post('/compile', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  // Handle stats requests
+  socket.on('get-stats', () => {
+    socket.emit('stats-update', {
+      activeUsers,
+      totalSessions,
+      totalLinesOfCode
+    });
+  });
+
   socket.on('join-room', ({ roomId, language, username }) => {
     // Leave previous room if any
     Array.from(socket.rooms).forEach(room => {
@@ -255,6 +269,15 @@ io.on('connection', (socket) => {
       username,
       participants: Array.from(room.participants.values())
     });
+
+    // Update stats when users join rooms
+    activeUsers++;
+    totalSessions++;
+    io.emit('stats-update', {
+      activeUsers,
+      totalSessions,
+      totalLinesOfCode
+    });
   });
 
   socket.on('code-change', ({ roomId, code }) => {
@@ -262,6 +285,15 @@ io.on('connection', (socket) => {
       const room = rooms.get(roomId);
       room.code = code;
       socket.to(roomId).emit('code-update', code);
+
+      // Update lines of code when code changes
+      const lines = code.split('\n').length;
+      totalLinesOfCode += lines;
+      io.emit('stats-update', {
+        activeUsers,
+        totalSessions,
+        totalLinesOfCode
+      });
     }
   });
 
@@ -315,6 +347,14 @@ io.on('connection', (socket) => {
       if (room.participants.size === 0) {
         rooms.delete(roomId);
       }
+
+      // Update stats when users leave rooms
+      activeUsers--;
+      io.emit('stats-update', {
+        activeUsers,
+        totalSessions,
+        totalLinesOfCode
+      });
     }
   });
 

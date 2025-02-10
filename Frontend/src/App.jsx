@@ -339,148 +339,161 @@ const App = () => {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-white dark:bg-gray-900 transition-colors">
-      <ThemeToggle />
+    <div className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-[#F5F5F5] dark:bg-[#1A1A1A] transition-colors">
+      {/* Theme Toggle - Moved to a better position */}
+      <div className="fixed top-4 left-4 z-50">
+        <ThemeToggle />
+      </div>
       
-      {/* Left Panel - Make it narrower */}
-      <div className="w-full lg:w-[25%] h-1/2 lg:h-full bg-gray-50 dark:bg-gray-800 border-b lg:border-r border-gray-200 dark:border-gray-700 p-3">
-        <div className="mb-3 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-300">
-              Room ID: {roomId}
+      {/* Left Panel - Sidebar */}
+      <div className="w-full lg:w-[25%] h-1/2 lg:h-full bg-white dark:bg-[#282828] border-b lg:border-r border-gray-200 dark:border-gray-700 p-4">
+        {/* Room Info Card */}
+        <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Room ID: <span className="font-mono text-[#FFA116]">{roomId}</span>
             </h3>
             {isHost ? (
               <button
                 onClick={handleEndRoom}
-                className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
+                className="px-3 py-1.5 bg-red-500 text-white text-sm rounded-md hover:bg-red-600 transition-colors"
               >
                 End Room
               </button>
             ) : (
               <button
                 onClick={handleLeaveRoom}
-                className="px-2 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition-colors"
+                className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600 transition-colors"
               >
                 Leave Room
               </button>
             )}
           </div>
-          <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-            Language: {language} {isHost && <span className="text-xs text-blue-500">(Host)</span>}
-          </p>
-          <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            <p>Participants ({participants.length}):</p>
-            <ul className="list-disc pl-5">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
+            <span className="text-sm">Language:</span>
+            <span className="font-medium text-[#FFA116]">{language}</span>
+            {isHost && <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">Host</span>}
+          </div>
+          <div className="mt-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">Participants ({participants.length})</p>
+            <ul className="mt-2 space-y-1">
               {participants.map((name, index) => (
-                <li key={index}>{name}</li>
+                <li key={index} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  {name}
+                </li>
               ))}
             </ul>
           </div>
         </div>
 
-        {/* Chat and Call Section - Reduced heights */}
-        <div className="h-full flex flex-col space-y-3">
-          <div className="flex-2 bg-white dark:bg-gray-700 rounded-lg p-3 shadow-md flex flex-col h-[250px]">
-            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Chat</h2>
-            <div className="flex-1 overflow-y-auto p-2 flex flex-col space-y-2 min-h-0">
+        {/* Chat Section */}
+        <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm h-[calc(50%-6rem)]">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Chat</h2>
+          </div>
+          <div className="flex flex-col h-[calc(100%-4rem)]">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.map((msg, index) => (
                 <div key={index} className={`flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}`}>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                     {msg.sender === 'me' ? 'You' : msg.username}
-                  </div>
-                  <div 
-                    className={`p-1.5 rounded-xl max-w-[80%] break-words text-sm ${
-                      msg.sender === 'me' 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-200 dark:bg-gray-600 text-black dark:text-white'
-                    }`}
-                  >
-                    {msg.message}
+                  </span>
+                  <div className={`px-3 py-2 rounded-lg max-w-[80%] ${
+                    msg.sender === 'me'
+                      ? 'bg-[#FFA116] text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                  }`}>
+                    <p className="text-sm">{msg.message}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <form onSubmit={sendMessage} className="flex gap-2 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 p-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <button 
-                type="submit"
-                className="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
-              >
-                Send
-              </button>
+            <form onSubmit={sendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
+                >
+                  Send
+                </button>
+              </div>
             </form>
           </div>
-          
-          <div className="flex-1 bg-white dark:bg-gray-700 rounded-lg p-3 shadow-md">
-            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Voice Channel</h2>
-            <div className="mb-3">
-              <button 
-                onClick={isCallActive ? handleLeaveCall : startCall}
-                className={`px-3 py-1.5 rounded transition-colors text-sm ${
-                  isCallActive 
-                    ? 'bg-red-500 hover:bg-red-600' 
-                    : 'bg-blue-500 hover:bg-blue-600'
-                } text-white`}
-              >
-                {isCallActive ? 'Leave Voice' : 'Join Voice'}
-              </button>
-            </div>
-            
-            <div className="mt-2">
-              <h3 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                Voice Participants
-              </h3>
-              <ul className="space-y-0.5">
-                {[...voiceParticipants].map(({ userId, username }) => (
-                  <li 
-                    key={userId}
-                    className="flex items-center text-xs text-gray-700 dark:text-gray-300"
-                  >
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
-                    {username}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        </div>
+
+        {/* Voice Channel */}
+        <div className="mt-4 bg-white dark:bg-[#282828] rounded-lg p-4">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Voice Channel</h2>
+          <button
+            onClick={isCallActive ? handleLeaveCall : startCall}
+            className={`w-full py-2 rounded-md transition-colors ${
+              isCallActive
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : 'bg-[#FFA116] hover:bg-[#FF9100] text-white'
+            }`}
+          >
+            {isCallActive ? 'Leave Voice' : 'Join Voice'}
+          </button>
+          <div className="mt-3">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+              Voice Participants
+            </h3>
+            <ul className="space-y-2">
+              {[...voiceParticipants].map(({ userId, username }) => (
+                <li
+                  key={userId}
+                  className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  {username}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Make it wider */}
-      <div className="w-full lg:w-[75%] h-1/2 lg:h-full flex flex-col p-3">
-        <div className="flex-[3] bg-white dark:bg-gray-700 rounded-lg p-4 mb-4 shadow-md flex flex-col">
-          <div className="flex flex-wrap items-center gap-4 mb-4">
-            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200">Code Editor</h2>
-            {isHost ? (
-              <select 
-                value={language}
-                onChange={(e) => handleLanguageChange(e.target.value)}
-                className="px-2 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="javascript">JavaScript</option>
-                <option value="python">Python</option>
-                <option value="cpp">C++</option>
-                <option value="java">Java</option>
-              </select>
-            ) : (
-              <div className="px-2 py-2 text-gray-600 dark:text-gray-300">
-                Language: {language}
+      {/* Right Panel - Editor */}
+      <div className="w-full lg:w-[75%] h-1/2 lg:h-full flex flex-col p-4 bg-[#F5F5F5] dark:bg-[#1A1A1A]">
+        <div className="flex-1 bg-white dark:bg-[#282828] rounded-lg shadow-sm mb-4 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white">Code Editor</h2>
+                {isHost ? (
+                  <select
+                    value={language}
+                    onChange={(e) => handleLanguageChange(e.target.value)}
+                    className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA116]"
+                  >
+                    <option value="javascript">JavaScript</option>
+                    <option value="python">Python</option>
+                    <option value="cpp">C++</option>
+                    <option value="java">Java</option>
+                  </select>
+                ) : (
+                  <span className="text-gray-600 dark:text-gray-300">
+                    Language: {language}
+                  </span>
+                )}
               </div>
-            )}
-            <button 
-              onClick={handleCompile}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-            >
-              Run Code
-            </button>
+              <button
+                onClick={handleCompile}
+                className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
+              >
+                Run Code
+              </button>
+            </div>
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className="h-[calc(100%-4rem)]">
             <Editor
               height="100%"
               defaultLanguage={language}
@@ -488,31 +501,33 @@ const App = () => {
               onChange={handleCodeChange}
               theme={isDark ? "vs-dark" : "light"}
               options={{
-                minimap: { enabled: false },
                 fontSize: 14,
+                minimap: { enabled: false },
                 automaticLayout: true,
+                padding: { top: 16, bottom: 16 },
               }}
             />
           </div>
         </div>
-        <div className="flex-1 bg-white dark:bg-gray-700 rounded-lg p-4 shadow-md overflow-auto">
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4">Output</h2>
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Program Input (one input per line)
-            </label>
-            <textarea
-              value={programInput}
-              onChange={(e) => setProgramInput(e.target.value)}
-              placeholder="Enter program inputs here..."
-              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white h-20"
-            />
+
+        {/* Output Section */}
+        <div className="h-[30%] bg-white dark:bg-[#282828] rounded-lg shadow-sm p-4">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
+          <div className="flex flex-col h-[calc(100%-2rem)] gap-3">
+            <div className="flex-1">
+              <textarea
+                value={programInput}
+                onChange={(e) => setProgramInput(e.target.value)}
+                placeholder="Program input (one per line)..."
+                className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
+              />
+            </div>
+            <div className="flex-1">
+              <pre className="h-full p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm">
+                {output}
+              </pre>
+            </div>
           </div>
-          
-          <pre className="bg-gray-100 dark:bg-gray-800 p-2.5 rounded overflow-x-auto text-gray-900 dark:text-white max-h-[200px] overflow-y-auto">
-            {output}
-          </pre>
         </div>
       </div>
     </div>

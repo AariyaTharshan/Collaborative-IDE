@@ -1,11 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import io from 'socket.io-client';
+
+const socket = io('http://localhost:3000');
 
 const RoomEntry = ({ onJoinRoom }) => {
-  const [mode, setMode] = useState(''); // 'create' or 'join'
+  const [mode, setMode] = useState('');
   const [roomId, setRoomId] = useState('');
   const [username, setUsername] = useState('');
   const [language, setLanguage] = useState('javascript');
-  
+
+  // Add new states for stats
+  const [stats, setStats] = useState({
+    activeUsers: 0,
+    totalSessions: 0,
+    totalLinesOfCode: 0
+  });
+
+  // Listen for stats updates
+  useEffect(() => {
+    // Initial stats fetch
+    socket.emit('get-stats');
+
+    // Listen for stats updates
+    socket.on('stats-update', (newStats) => {
+      setStats(newStats);
+    });
+
+    return () => {
+      socket.off('stats-update');
+    };
+  }, []);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!username.trim()) {
@@ -14,7 +39,6 @@ const RoomEntry = ({ onJoinRoom }) => {
     }
     
     if (mode === 'create') {
-      // Generate a random room ID if creating a new room
       const newRoomId = Math.random().toString(36).substring(2, 9);
       onJoinRoom(newRoomId, language, username);
     } else {
@@ -23,90 +47,166 @@ const RoomEntry = ({ onJoinRoom }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 transition-colors">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md w-11/12 max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-white">Join Coding Room</h1>
-        
-        <div className="flex gap-4 mb-6">
-          <button
-            className={`flex-1 py-2 rounded transition-colors ${
-              mode === 'create' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}
-            onClick={() => setMode('create')}
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#1A1A1A] relative">
+      {/* LeetCode-style background pattern */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]"
+        style={{
+          backgroundImage: `
+            radial-gradient(#FFA116 1px, transparent 1px), 
+            radial-gradient(#FFA116 1px, transparent 1px)
+          `,
+          backgroundSize: '50px 50px',
+          backgroundPosition: '0 0, 25px 25px',
+        }}
+      />
+
+      {/* Animated code symbols */}
+      <div className="absolute inset-0 overflow-hidden">
+        {[
+          'class', 'def', 'for', 'while', 'if', 'return', 
+          'function', 'import', 'const', 'let', 'var'
+        ].map((word, index) => (
+          <div
+            key={index}
+            className="absolute text-gray-200 dark:text-gray-800 font-mono text-6xl font-bold opacity-[0.03] dark:opacity-[0.05]"
+            style={{
+              top: `${Math.random() * 100}%`,
+              left: `${Math.random() * 100}%`,
+              transform: `rotate(${Math.random() * 360}deg)`
+            }}
           >
-            Create Room
-          </button>
-          <button
-            className={`flex-1 py-2 rounded transition-colors ${
-              mode === 'join' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}
-            onClick={() => setMode('join')}
-          >
-            Join Room
-          </button>
+            {word}
+          </div>
+        ))}
+      </div>
+
+      <div className="w-11/12 max-w-md space-y-6 relative z-10">
+        {/* Title Section */}
+        <div className="text-center space-y-3">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-[#FFA116] to-[#FF6B6B] text-transparent bg-clip-text">
+            CodeCollab
+          </h1>
+          <p className="text-[#FFA116] text-lg font-medium">
+            Real-time Collaborative Coding
+          </p>
         </div>
 
-        {mode && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-                placeholder="Enter your username"
-              />
-            </div>
+        {/* Main Container */}
+        <div className="bg-white dark:bg-[#282828] p-8 rounded-lg shadow-2xl border border-[#444]/10 dark:border-[#444]/20">
+          {/* Mode Selection */}
+          <div className="flex gap-3 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg mb-8">
+            <button
+              className={`flex-1 py-3 rounded-md text-base font-medium transition-all duration-200 ${
+                mode === 'create'
+                  ? 'bg-[#FFA116] text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-[#FFA116] dark:hover:text-[#FFA116]'
+              }`}
+              onClick={() => setMode('create')}
+            >
+              Create Room
+            </button>
+            <button
+              className={`flex-1 py-3 rounded-md text-base font-medium transition-all duration-200 ${
+                mode === 'join'
+                  ? 'bg-[#FFA116] text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-[#FFA116] dark:hover:text-[#FFA116]'
+              }`}
+              onClick={() => setMode('join')}
+            >
+              Join Room
+            </button>
+          </div>
 
-            {mode === 'join' ? (
+          {mode && (
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Room ID
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Username
                 </label>
                 <input
                   type="text"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
                   required
-                  placeholder="Enter room ID"
+                  placeholder="Enter your username"
                 />
               </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Programming Language
-                </label>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  required
-                >
-                  <option value="javascript">JavaScript</option>
-                  <option value="python">Python</option>
-                  <option value="cpp">C++</option>
-                  <option value="java">Java</option>
-                </select>
-              </div>
-            )}
 
-            <button
-              type="submit"
-              className="w-full py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-            >
-              {mode === 'create' ? 'Create Room' : 'Join Room'}
-            </button>
-          </form>
-        )}
+              {mode === 'join' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Room ID
+                  </label>
+                  <input
+                    type="text"
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
+                    required
+                    placeholder="Enter room ID"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Programming Language
+                  </label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
+                    required
+                  >
+                    <option value="javascript">JavaScript</option>
+                    <option value="python">Python</option>
+                    <option value="cpp">C++</option>
+                    <option value="java">Java</option>
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-[#FFA116] hover:bg-[#FF9100] text-white font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFA116]"
+              >
+                {mode === 'create' ? 'Create Room' : 'Join Room'}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Updated Stats Section with real data */}
+        <div className="flex justify-center gap-8 text-center">
+          <div className="relative group">
+            <div className="text-[#FFA116] text-xl font-bold">
+              {stats.activeUsers}+
+            </div>
+            <div className="text-gray-600 dark:text-gray-400 text-sm">Active Users</div>
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              Real-time users
+            </div>
+          </div>
+          <div className="relative group">
+            <div className="text-[#FFA116] text-xl font-bold">
+              {stats.totalSessions}+
+            </div>
+            <div className="text-gray-400 text-sm">Sessions</div>
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              Total coding sessions
+            </div>
+          </div>
+          <div className="relative group">
+            <div className="text-[#FFA116] text-xl font-bold">
+              {stats.totalLinesOfCode}+
+            </div>
+            <div className="text-gray-400 text-sm">Lines of Code</div>
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              Lines written today
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
