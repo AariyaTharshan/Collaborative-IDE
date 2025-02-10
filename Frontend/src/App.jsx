@@ -31,7 +31,7 @@ const App = () => {
 
   useEffect(() => {
     if (!socketRef.current) {
-      socketRef.current = io('https://collaborative-ide-x0sn.onrender.com', {
+      socketRef.current = io('http://localhost:3000/', {
         reconnection: false,
         transports: ['websocket']
       });
@@ -140,7 +140,7 @@ const App = () => {
 
   const handleCompile = async () => {
     try {
-      const response = await axios.post('https://collaborative-ide-x0sn.onrender.com/compile', {
+      const response = await axios.post('http://localhost:3000/compile', {
         code,
         language,
         input: programInput
