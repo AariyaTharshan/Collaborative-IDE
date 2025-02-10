@@ -219,12 +219,17 @@ app.post('/compile', async (req, res) => {
     await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
     
     res.json({ output });
-
   } catch (error) {
+    console.error('Compilation error:', error);
+    
     // Cleanup files even if there's an error
     await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
     
-    res.json({ error: error.toString() });
+    // Send a more detailed error message
+    res.status(500).json({ 
+      error: error.toString(),
+      details: error.message
+    });
   }
 });
 
@@ -399,14 +404,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join-voice', ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      const username = room.participants.get(socket.id);
-      io.to(roomId).emit('voice-participant-joined', {
-        userId: socket.id,
-        username
-      });
-    }
+    socket.to(roomId).emit('user-joined-voice', { userId: socket.id });
+  });
+
+  socket.on('voice-offer', ({ target, sdp, caller }) => {
+    io.to(target).emit('voice-offer', { sdp, caller });
+  });
+
+  socket.on('voice-answer', ({ target, sdp }) => {
+    io.to(target).emit('voice-answer', { sdp, answerer: socket.id });
+  });
+
+  socket.on('voice-ice-candidate', ({ target, candidate }) => {
+    io.to(target).emit('voice-ice-candidate', { candidate, sender: socket.id });
   });
 
   socket.on('leave-voice', ({ roomId }) => {

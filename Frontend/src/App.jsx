@@ -24,6 +24,8 @@ const App = () => {
   const [programInput, setProgramInput] = useState('');
   const [voiceParticipants, setVoiceParticipants] = useState(new Set());
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [peerConnections, setPeerConnections] = useState(new Map());
+  const localStreamRef = useRef(null);
   
   const peerRef = useRef(null);
   const { isDark } = useTheme();
@@ -141,14 +143,32 @@ const App = () => {
 
   const handleCompile = async () => {
     try {
+      setOutput('Compiling...');
       const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/compile`, {
         code,
         language,
         input: programInput
+      }, {
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
-      setOutput(response.data.output || response.data.error);
+      
+      if (response.data.error) {
+        setOutput(`Error: ${response.data.error}`);
+      } else {
+        setOutput(response.data.output || 'No output');
+      }
     } catch (error) {
-      setOutput('Compilation error: ' + error.message);
+      console.error('Compilation error:', error);
+      if (error.response) {
+        setOutput(`Server Error: ${error.response.data.error || error.response.data}`);
+      } else if (error.request) {
+        setOutput('Network Error: Could not reach the compilation server. Please try again.');
+      } else {
+        setOutput('Error: ' + error.message);
+      }
     }
   };
 
@@ -189,7 +209,7 @@ const App = () => {
 
   const startCall = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -198,58 +218,119 @@ const App = () => {
         video: false
       });
 
-      if (!mediaStream) {
-        throw new Error('No media stream available');
-      }
-
+      localStreamRef.current = mediaStream;
       setStream(mediaStream);
-
-      const newPeer = new SimplePeer({
-        initiator: true,
-        trickle: false,
-        stream: mediaStream,
-        config: {
-          iceServers: [
-            { 
-              urls: [
-                'stun:stun1.l.google.com:19302',
-                'stun:stun2.l.google.com:19302',
-              ]
-            }
-          ]
-        }
-      });
-
-      newPeer.on('error', (err) => {
-        console.error('Peer error:', err);
-      });
-
-      newPeer.on('signal', (data) => {
-        socketRef.current?.emit('call-user', {
-          userToCall: roomId,
-          signalData: data,
-          roomId
-        });
-      });
-
-      newPeer.on('stream', (remoteStream) => {
-        try {
-          const audio = new Audio();
-          audio.srcObject = remoteStream;
-          audio.play().catch(err => {
-            console.error('Audio play error:', err);
-            document.addEventListener('click', () => {
-              audio.play().catch(console.error);
-            }, { once: true });
-          });
-        } catch (err) {
-          console.error('Stream handling error:', err);
-        }
-      });
-
-      peerRef.current = newPeer;
       setIsCallActive(true);
+
+      // Notify others that we've joined voice
       socketRef.current?.emit('join-voice', { roomId });
+
+      // Listen for new peers joining
+      socketRef.current?.on('user-joined-voice', async ({ userId }) => {
+        if (userId !== socketRef.current.id) {
+          const peerConnection = new RTCPeerConnection({
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+          });
+
+          // Add our local stream
+          localStreamRef.current.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStreamRef.current);
+          });
+
+          // Create and send offer
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+          socketRef.current.emit('voice-offer', {
+            target: userId,
+            caller: socketRef.current.id,
+            sdp: peerConnection.localDescription
+          });
+
+          // Handle ICE candidates
+          peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+              socketRef.current.emit('voice-ice-candidate', {
+                target: userId,
+                candidate: event.candidate
+              });
+            }
+          };
+
+          // Handle incoming stream
+          peerConnection.ontrack = (event) => {
+            const audio = new Audio();
+            audio.srcObject = event.streams[0];
+            audio.play().catch(console.error);
+          };
+
+          setPeerConnections(prev => new Map(prev.set(userId, peerConnection)));
+        }
+      });
+
+      // Handle incoming voice offers
+      socketRef.current?.on('voice-offer', async ({ sdp, caller }) => {
+        const peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        });
+
+        // Add our local stream
+        localStreamRef.current.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStreamRef.current);
+        });
+
+        // Set remote description
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+
+        // Create and send answer
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        socketRef.current.emit('voice-answer', {
+          target: caller,
+          sdp: peerConnection.localDescription
+        });
+
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socketRef.current.emit('voice-ice-candidate', {
+              target: caller,
+              candidate: event.candidate
+            });
+          }
+        };
+
+        // Handle incoming stream
+        peerConnection.ontrack = (event) => {
+          const audio = new Audio();
+          audio.srcObject = event.streams[0];
+          audio.play().catch(console.error);
+        };
+
+        setPeerConnections(prev => new Map(prev.set(caller, peerConnection)));
+      });
+
+      // Handle answers
+      socketRef.current?.on('voice-answer', async ({ sdp, answerer }) => {
+        const peerConnection = peerConnections.get(answerer);
+        if (peerConnection) {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+        }
+      });
+
+      // Handle ICE candidates
+      socketRef.current?.on('voice-ice-candidate', async ({ candidate, sender }) => {
+        const peerConnection = peerConnections.get(sender);
+        if (peerConnection) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      });
 
     } catch (err) {
       console.error('Failed to start call:', err);
@@ -319,17 +400,20 @@ const App = () => {
   };
 
   const handleLeaveCall = () => {
-    if (peerRef.current) {
-      peerRef.current.destroy();
-      peerRef.current = null;
+    // Stop all tracks in local stream
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
     }
-    
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-    
+
+    // Close all peer connections
+    peerConnections.forEach(connection => {
+      connection.close();
+    });
+    setPeerConnections(new Map());
+
     setIsCallActive(false);
+    setStream(null);
     socketRef.current?.emit('leave-voice', { roomId });
   };
 
