@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: codocollab-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000
+    buildFilter:
+      paths:
+      - server.js
+      - package.json

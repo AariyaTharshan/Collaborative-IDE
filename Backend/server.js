@@ -13,8 +13,12 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"]
+    origin: [
+      'http://localhost:5173',
+      'https://collab-code.vercel.app'
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
@@ -25,13 +29,19 @@ let activeUsers = 0;
 let totalSessions = 0;
 let totalLinesOfCode = 0;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://collab-code.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Create temp directory if it doesn't exist
-const tempDir = path.join(__dirname, 'temp');
+const tempDir = path.join(process.env.TEMP || '/tmp', 'codocollab');
 if (!fsSync.existsSync(tempDir)) {
-  fsSync.mkdirSync(tempDir);
+  fsSync.mkdirSync(tempDir, { recursive: true });
 }
 
 // Cleanup function for temp files
@@ -442,6 +452,6 @@ io.on('connection', (socket) => {
 cleanTempDirectory().catch(console.error);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 }); 

@@ -12,12 +12,16 @@ export default defineConfig({
       'process': 'process/browser',
       'stream': 'stream-browserify',
       'zlib': 'browserify-zlib',
-      'util': 'util',
-      'simple-peer': 'simple-peer/simplepeer.min.js',
+      'util': 'util'
     }
   },
   optimizeDeps: {
-    include: ['simple-peer'],
+    include: ['simple-peer']
   },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
+  }
 })
 

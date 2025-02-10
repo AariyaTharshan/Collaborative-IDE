@@ -31,8 +31,9 @@ const App = () => {
 
   useEffect(() => {
     if (!socketRef.current) {
-      socketRef.current = io('http://localhost:3000/', {
-        reconnection: false,
+      socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
+        reconnection: true,
+        reconnectionAttempts: 5,
         transports: ['websocket']
       });
     }
@@ -140,7 +141,7 @@ const App = () => {
 
   const handleCompile = async () => {
     try {
-      const response = await axios.post('http://localhost:3000/compile', {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/compile`, {
         code,
         language,
         input: programInput
