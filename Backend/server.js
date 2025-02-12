@@ -13,7 +13,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       'http://localhost:5173',
-      'https://collab-code.vercel.app'
+      'https://collabcode-ide.vercel.app'
     ],
     methods: ["GET", "POST"],
     credentials: true
@@ -31,7 +31,7 @@ let totalLinesOfCode = 0;
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://collab-code.vercel.app'
+    'https://collabcode-ide.vercel.app'
   ],
   credentials: true
 }));
