@@ -1,15 +1,11 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { exec } = require('child_process');
 const path = require('path');
-const fs = require('fs').promises;
-const fsSync = require('fs');
-const { promisify } = require('util');
-const readdir = promisify(fsSync.readdir);
-const util = require('util');
-const execAsync = util.promisify(exec);
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -26,7 +22,7 @@ const io = new Server(server, {
 
 const rooms = new Map(); // Store room information
 
-// At the top of the file, update the stats variables
+// Stats variables
 let totalUsers = 0;  // This will be cumulative
 let activeUsers = 0; // This tracks current active users
 let totalSessions = 0;
@@ -41,150 +37,86 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Create temp directory if it doesn't exist
-const tempDir = path.join(process.env.TEMP || '/tmp', 'codocollab');
-if (!fsSync.existsSync(tempDir)) {
-  fsSync.mkdirSync(tempDir, { recursive: true });
-}
-
-// Cleanup function for temp files
-const cleanupFile = async (filePath) => {
-  try {
-    // Check if file exists before attempting to delete
-    const exists = await fs.access(filePath).then(() => true).catch(() => false);
-    if (exists) {
-      await fs.unlink(filePath);
-    }
-  } catch (err) {
-    // Silently ignore errors since they're not critical
-    console.debug('Cleanup skipped:', filePath);
-  }
-};
-
-// Add this function to clean the temp directory
-const cleanTempDirectory = async () => {
-  try {
-    const files = await readdir(tempDir);
-    await Promise.all(
-      files.map(async file => {
-        const filePath = path.join(tempDir, file);
-        try {
-          const exists = await fs.access(filePath).then(() => true).catch(() => false);
-          if (exists) {
-            await fs.unlink(filePath);
-          }
-        } catch (err) {
-          console.debug('Failed to delete:', file);
-        }
-      })
-    );
-  } catch (err) {
-    console.debug('Temp directory cleanup skipped');
-  }
-};
-
-// Add a function to check and install compilers
-const ensureCompilers = async () => {
-  try {
-    await execAsync('which g++');
-  } catch {
-    console.log('Installing C++ compiler...');
-    await execAsync('apt-get update && apt-get install -y g++');
-  }
-
-  try {
-    await execAsync('which python3');
-  } catch {
-    console.log('Installing Python...');
-    await execAsync('apt-get update && apt-get install -y python3');
-  }
-
-  try {
-    await execAsync('which java');
-  } catch {
-    console.log('Installing Java...');
-    await execAsync('apt-get update && apt-get install -y default-jdk');
-  }
-};
-
 // Handle code compilation
 app.post('/compile', async (req, res) => {
   const { code, language, input } = req.body;
-  const fileName = `temp_${Date.now()}`;
-  let filesToCleanup = [];
   
+  if (!process.env.RAPID_API_KEY) {
+    return res.status(500).json({ 
+      error: 'Server configuration error: API key not found'
+    });
+  }
+
+  const languageMap = {
+    'cpp': 54,
+    'java': 62,
+    'python': 71,
+    'javascript': 63
+  };
+
   try {
-    // Create temp directory if it doesn't exist
-    if (!fsSync.existsSync(tempDir)) {
-      fsSync.mkdirSync(tempDir, { recursive: true });
-    }
-
-    const filePath = path.join(tempDir, `${fileName}.${language === 'cpp' ? 'cpp' : language === 'python' ? 'py' : 'js'}`);
-    filesToCleanup.push(filePath);
-
-    // Write the code to a file
-    await fs.writeFile(filePath, code);
-
-    // Write input to file if provided
-    let inputPath;
-    if (input) {
-      inputPath = path.join(tempDir, `${fileName}.input`);
-      await fs.writeFile(inputPath, input);
-      filesToCleanup.push(inputPath);
-    }
-
-    let output;
-    switch(language) {
-      case 'javascript':
-        output = await execAsync(`node "${filePath}"`, { timeout: 5000 });
-        break;
-
-      case 'python':
-        output = await execAsync(`python3 "${filePath}"`, { timeout: 5000 });
-        break;
-
-      case 'cpp': {
-        const outputPath = path.join(tempDir, fileName + (process.platform === 'win32' ? '.exe' : ''));
-        filesToCleanup.push(outputPath);
-        
-        // Compile
-        await execAsync(`g++ "${filePath}" -o "${outputPath}"`, { timeout: 5000 });
-        // Run
-        output = await execAsync(outputPath, { timeout: 5000 });
-        break;
+    const response = await axios.post('https://judge0-ce.p.rapidapi.com/submissions', {
+      source_code: code,
+      stdin: input,
+      language_id: languageMap[language]
+    }, {
+      headers: {
+        'content-type': 'application/json',
+        'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+        'X-RapidAPI-Key': process.env.RAPID_API_KEY
       }
+    });
 
-      case 'java': {
-        const className = 'Main';
-        const javaCode = code.replace(/public\s+class\s+\w+/, `public class ${className}`);
-        const javaFilePath = path.join(tempDir, `${className}.java`);
-        filesToCleanup.push(javaFilePath);
-        
-        await fs.writeFile(javaFilePath, javaCode);
-        // Compile
-        await execAsync(`javac "${javaFilePath}"`, { timeout: 5000 });
-        // Run
-        output = await execAsync(`java -cp "${tempDir}" ${className}`, { timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const token = response.data.token;
+    let result;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      try {
+        const resultResponse = await axios.get(`https://judge0-ce.p.rapidapi.com/submissions/${token}`, {
+          headers: {
+            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+            'X-RapidAPI-Key': process.env.RAPID_API_KEY
+          }
+        });
+
+        if (resultResponse.data.status.id <= 2) {
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        result = resultResponse.data;
         break;
+      } catch (error) {
+        console.error('Error fetching result:', error);
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-
-      default:
-        throw new Error('Unsupported language');
     }
 
-    // Cleanup files
-    await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
-    
-    res.json({ output: output.stdout });
+    if (!result) {
+      throw new Error('Compilation timed out');
+    }
+
+    if (result.status.id === 3) {
+      res.json({ output: result.stdout || 'Program completed successfully' });
+    } else if (result.status.id === 6) {
+      res.status(400).json({ error: result.compile_output });
+    } else {
+      res.status(400).json({ 
+        error: result.stderr || result.status.description || 'Execution error'
+      });
+    }
+
   } catch (error) {
-    console.error('Compilation error:', error);
-    
-    // Cleanup files even if there's an error
-    await Promise.all(filesToCleanup.map(file => cleanupFile(file)));
-    
+    console.error('Compilation error:', error.response?.data || error.message);
     res.status(500).json({ 
-      error: error.toString(),
-      details: error.stderr || error.message
+      error: 'Compilation failed',
+      details: error.response?.data?.error || error.message
     });
   }
 });
@@ -417,12 +349,6 @@ io.on('connection', (socket) => {
     console.log('User disconnected:', socket.id);
   });
 });
-
-// Also clean temp directory when server starts
-cleanTempDirectory().catch(console.error);
-
-// Call ensureCompilers when server starts
-ensureCompilers().catch(console.error);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {

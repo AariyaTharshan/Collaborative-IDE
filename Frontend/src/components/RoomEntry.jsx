@@ -31,7 +31,7 @@ const RoomEntry = ({ onJoinRoom }) => {
       socket.off('stats-update');
     };
   }, []);
-
+  
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!username.trim()) {
@@ -151,85 +151,85 @@ const RoomEntry = ({ onJoinRoom }) => {
         <div className="bg-white dark:bg-[#282828] p-8 rounded-lg shadow-2xl border border-[#444]/10 dark:border-[#444]/20">
           {/* Mode Selection */}
           <div className="flex gap-3 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg mb-8">
-            <button
+          <button
               className={`flex-1 py-3 rounded-md text-base font-medium transition-all duration-200 ${
-                mode === 'create'
+              mode === 'create' 
                   ? 'bg-[#FFA116] text-white shadow-md'
                   : 'text-gray-600 dark:text-gray-300 hover:text-[#FFA116] dark:hover:text-[#FFA116]'
-              }`}
-              onClick={() => setMode('create')}
-            >
-              Create Room
-            </button>
-            <button
+            }`}
+            onClick={() => setMode('create')}
+          >
+            Create Room
+          </button>
+          <button
               className={`flex-1 py-3 rounded-md text-base font-medium transition-all duration-200 ${
-                mode === 'join'
+              mode === 'join' 
                   ? 'bg-[#FFA116] text-white shadow-md'
                   : 'text-gray-600 dark:text-gray-300 hover:text-[#FFA116] dark:hover:text-[#FFA116]'
-              }`}
-              onClick={() => setMode('join')}
-            >
-              Join Room
-            </button>
-          </div>
+            }`}
+            onClick={() => setMode('join')}
+          >
+            Join Room
+          </button>
+        </div>
 
-          {mode && (
+        {mode && (
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
+            <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Username
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                  className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
+                required
+                placeholder="Enter your username"
+              />
+            </div>
+
+            {mode === 'join' ? (
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Room ID
                 </label>
                 <input
                   type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
                   required
-                  placeholder="Enter your username"
+                  placeholder="Enter room ID"
                 />
               </div>
-
-              {mode === 'join' ? (
-                <div>
+            ) : (
+              <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Room ID
-                  </label>
-                  <input
-                    type="text"
-                    value={roomId}
-                    onChange={(e) => setRoomId(e.target.value)}
-                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
-                    required
-                    placeholder="Enter room ID"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Programming Language
-                  </label>
-                  <select
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                  Programming Language
+                </label>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
                     className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA116] focus:border-transparent transition-all"
-                    required
-                  >
-                    <option value="javascript">JavaScript</option>
-                    <option value="python">Python</option>
-                    <option value="cpp">C++</option>
-                    <option value="java">Java</option>
-                  </select>
-                </div>
-              )}
+                  required
+                >
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                  <option value="cpp">C++</option>
+                  <option value="java">Java</option>
+                </select>
+              </div>
+            )}
 
-              <button
-                type="submit"
+            <button
+              type="submit"
                 className="w-full py-3 bg-[#FFA116] hover:bg-[#FF9100] text-white font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFA116]"
-              >
-                {mode === 'create' ? 'Create Room' : 'Join Room'}
-              </button>
-            </form>
-          )}
+            >
+              {mode === 'create' ? 'Create Room' : 'Join Room'}
+            </button>
+          </form>
+        )}
         </div>
 
         {/* Updated Stats Section with real data */}

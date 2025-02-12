@@ -209,7 +209,7 @@ const App = () => {
 
   const startCall = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -377,8 +377,8 @@ const App = () => {
       });
 
       newPeer.on('stream', (remoteStream) => {
-        const audio = new Audio();
-        audio.srcObject = remoteStream;
+          const audio = new Audio();
+          audio.srcObject = remoteStream;
         audio.play().catch(err => {
           console.error('Audio play error:', err);
           // Try playing on user interaction
@@ -413,7 +413,7 @@ const App = () => {
     setPeerConnections(new Map());
 
     setIsCallActive(false);
-    setStream(null);
+        setStream(null);
     socketRef.current?.emit('leave-voice', { roomId });
   };
 
@@ -436,7 +436,7 @@ const App = () => {
     <div className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-[#F5F5F5] dark:bg-[#1A1A1A] transition-colors">
       {/* Theme Toggle - Moved to a better position */}
       <div className="fixed top-4 left-4 z-50">
-        <ThemeToggle />
+      <ThemeToggle />
       </div>
       
       {/* Left Panel - Sidebar */}
@@ -494,7 +494,7 @@ const App = () => {
                     {msg.sender === 'me' ? 'You' : msg.username}
                   </span>
                   <div className={`px-3 py-2 rounded-lg max-w-[80%] ${
-                    msg.sender === 'me'
+                      msg.sender === 'me' 
                       ? 'bg-[#FFA116] text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                   }`}>
@@ -505,52 +505,52 @@ const App = () => {
             </div>
             <form onSubmit={sendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type a message..."
                   className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116]"
-                />
-                <button
-                  type="submit"
+              />
+              <button 
+                type="submit"
                   className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
-                >
-                  Send
-                </button>
+              >
+                Send
+              </button>
               </div>
             </form>
           </div>
-        </div>
-
+          </div>
+          
         {/* Voice Channel */}
         <div className="mt-4 bg-white dark:bg-[#282828] rounded-lg p-4">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Voice Channel</h2>
-          <button
-            onClick={isCallActive ? handleLeaveCall : startCall}
+              <button 
+                onClick={isCallActive ? handleLeaveCall : startCall}
             className={`w-full py-2 rounded-md transition-colors ${
-              isCallActive
+                  isCallActive 
                 ? 'bg-red-500 hover:bg-red-600 text-white'
                 : 'bg-[#FFA116] hover:bg-[#FF9100] text-white'
             }`}
-          >
-            {isCallActive ? 'Leave Voice' : 'Join Voice'}
-          </button>
+              >
+                {isCallActive ? 'Leave Voice' : 'Join Voice'}
+              </button>
           <div className="mt-3">
             <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-              Voice Participants
-            </h3>
+                Voice Participants
+              </h3>
             <ul className="space-y-2">
-              {[...voiceParticipants].map(({ userId, username }) => (
-                <li
-                  key={userId}
+                {[...voiceParticipants].map(({ userId, username }) => (
+                  <li 
+                    key={userId}
                   className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
-                >
+                  >
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  {username}
-                </li>
-              ))}
-            </ul>
+                    {username}
+                  </li>
+                ))}
+              </ul>
           </div>
         </div>
       </div>
@@ -562,20 +562,20 @@ const App = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-white">Code Editor</h2>
-                {isHost ? (
-                  <select
-                    value={language}
-                    onChange={(e) => handleLanguageChange(e.target.value)}
+            {isHost ? (
+              <select 
+                value={language}
+                onChange={(e) => handleLanguageChange(e.target.value)}
                     className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA116]"
-                  >
-                    <option value="javascript">JavaScript</option>
-                    <option value="python">Python</option>
-                    <option value="cpp">C++</option>
-                    <option value="java">Java</option>
-                  </select>
-                ) : (
+              >
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="cpp">C++</option>
+                <option value="java">Java</option>
+              </select>
+            ) : (
                   <span className="text-gray-600 dark:text-gray-300">
-                    Language: {language}
+                Language: {language}
                   </span>
                 )}
               </div>
@@ -589,13 +589,13 @@ const App = () => {
                   </svg>
                   <span>Snippets</span>
                 </button>
-                <button
-                  onClick={handleCompile}
+            <button 
+              onClick={handleCompile}
                   className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
-                >
-                  Run Code
-                </button>
-              </div>
+            >
+              Run Code
+            </button>
+          </div>
             </div>
           </div>
           <div className="h-[calc(100%-4rem)]">
@@ -756,19 +756,19 @@ const App = () => {
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
           <div className="flex flex-col h-[calc(100%-2rem)] gap-3">
             <div className="flex-1">
-              <textarea
-                value={programInput}
-                onChange={(e) => setProgramInput(e.target.value)}
+            <textarea
+              value={programInput}
+              onChange={(e) => setProgramInput(e.target.value)}
                 placeholder="Program input (one per line)..."
                 className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
-              />
-            </div>
+            />
+          </div>
             <div className="flex-1">
               <pre className="h-full p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm">
-                {output}
-              </pre>
-            </div>
-          </div>
+            {output}
+          </pre>
+        </div>
+      </div>
         </div>
       </div>
 

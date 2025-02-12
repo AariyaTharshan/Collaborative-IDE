@@ -7,6 +7,8 @@ services:
     envVars:
       - key: PORT
         value: 3000
+      - key: RAPID_API_KEY
+        sync: false
     buildFilter:
       paths:
       - server.js
