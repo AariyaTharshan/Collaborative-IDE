@@ -21,6 +21,7 @@ const io = new Server(server, {
 });
 
 const rooms = new Map(); // Store room information
+const voiceParticipants = new Map(); // Store voice participants per room
 
 // Stats variables
 let totalUsers = 0;  // This will be cumulative
@@ -294,8 +295,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join-voice', ({ roomId }) => {
-    socket.to(roomId).emit('user-joined-voice', { userId: socket.id });
+  socket.on('join-voice', ({ roomId, userId, username }) => {
+    if (!voiceParticipants.has(roomId)) {
+      voiceParticipants.set(roomId, new Map());
+    }
+    
+    const roomVoiceParticipants = voiceParticipants.get(roomId);
+    roomVoiceParticipants.set(socket.id, username);
+
+    // Send current voice participants to the joining user
+    socket.emit('voice-participants', {
+      participants: Array.from(roomVoiceParticipants.entries())
+    });
+
+    // Notify others in the room
+    socket.to(roomId).emit('voice-participant-joined', {
+        userId: socket.id,
+        username
+      });
   });
 
   socket.on('voice-offer', ({ target, sdp, caller }) => {
@@ -311,9 +328,20 @@ io.on('connection', (socket) => {
   });
 
   socket.on('leave-voice', ({ roomId }) => {
+    if (voiceParticipants.has(roomId)) {
+      const roomVoiceParticipants = voiceParticipants.get(roomId);
+      roomVoiceParticipants.delete(socket.id);
+
+      // Notify others in the room
     io.to(roomId).emit('voice-participant-left', {
       userId: socket.id
     });
+
+      // Clean up empty voice rooms
+      if (roomVoiceParticipants.size === 0) {
+        voiceParticipants.delete(roomId);
+      }
+    }
   });
 
   socket.on('disconnect', () => {
@@ -346,6 +374,21 @@ io.on('connection', (socket) => {
         });
       }
     }
+    
+    // Clean up voice participants
+    voiceParticipants.forEach((participants, roomId) => {
+      if (participants.has(socket.id)) {
+        participants.delete(socket.id);
+        io.to(roomId).emit('voice-participant-left', {
+          userId: socket.id
+        });
+        
+        if (participants.size === 0) {
+          voiceParticipants.delete(roomId);
+        }
+      }
+    });
+    
     console.log('User disconnected:', socket.id);
   });
 });
