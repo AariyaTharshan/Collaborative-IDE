@@ -425,15 +425,10 @@ const App = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F5F5F5] dark:bg-[#1A1A1A] transition-colors">
-      {/* Theme Toggle - Always show */}
-      <div className="absolute top-4 right-[100px] lg:top-4 lg:right-[175px] z-50">
-        <ThemeToggle />
-      </div>
-
       {!isInRoom ? (
         <RoomEntry onJoinRoom={handleJoinRoom} />
       ) : (
-        <div className="flex flex-col lg:flex-row h-full">
+        <div className="flex flex-col lg:flex-row h-full relative">
           {/* Left Panel - Sidebar */}
           <div className="w-full lg:w-[25%] h-[30vh] lg:h-full bg-white dark:bg-[#282828] border-b lg:border-r border-gray-200 dark:border-gray-700 flex flex-col">
             {/* Room Info */}
@@ -589,7 +584,7 @@ const App = () => {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setIsHelpOpen(true)}
-                      className="relative right-[150px] px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
+                      className="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -783,6 +778,11 @@ const App = () => {
 
       {/* Help Page Component */}
       <HelpPage isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* Theme Toggle - Positioned at bottom right */}
+      <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6 lg:bottom-8 lg:right-8">
+        <ThemeToggle />
+      </div>
     </div>
   );
 };

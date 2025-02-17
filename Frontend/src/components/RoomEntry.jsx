@@ -116,26 +116,6 @@ const RoomEntry = ({ onJoinRoom }) => {
         }}
       />
 
-      {/* Animated code symbols */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[
-          'class', 'def', 'for', 'while', 'if', 'return', 
-          'function', 'import', 'const', 'let', 'var'
-        ].map((word, index) => (
-          <div
-            key={index}
-            className="absolute text-gray-200 dark:text-gray-800 font-mono text-6xl font-bold opacity-[0.03] dark:opacity-[0.05]"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              transform: `rotate(${Math.random() * 360}deg)`
-            }}
-          >
-            {word}
-          </div>
-        ))}
-      </div>
-
       <div className="w-11/12 max-w-md space-y-6 relative z-10">
         {/* Title Section */}
         <div className="text-center space-y-3">
