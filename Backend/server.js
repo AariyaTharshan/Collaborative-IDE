@@ -13,28 +13,34 @@ const io = new Server(server, {
   cors: {
     origin: [
       'http://localhost:5173',
-      'https://collabcode-ide.vercel.app'
+      'http://localhost:3000',
+      'https://collabcode-ide.vercel.app',
     ],
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+    transports: ['websocket', 'polling']
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true,
+  cookie: false
 });
 
 const rooms = new Map(); // Store room information
 const voiceParticipants = new Map(); // Store voice participants per room
-
-// Stats variables
-let totalUsers = 0;  // This will be cumulative
-let activeUsers = 0; // This tracks current active users
-let totalSessions = 0;
-let totalLinesOfCode = 0;
+const peerConnections = new Map(); // Store peer connections per room
 
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://collabcode-ide.vercel.app'
+    'http://localhost:3000',
+    'https://collabcode-ide.vercel.app',
+    'https://collaborative-ide-k4rx.onrender.com'
   ],
-  credentials: true
+  methods: ['GET', 'POST'],
+  credentials: true,
+  optionsSuccessStatus: 204
 }));
 app.use(express.json());
 
@@ -122,20 +128,20 @@ app.post('/compile', async (req, res) => {
   }
 });
 
+// Add this near your other endpoints
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   
-  let currentRoom = null;
-
-  // Handle stats requests
-  socket.on('get-stats', () => {
-    socket.emit('stats-update', {
-      activeUsers,
-      totalSessions,
-      totalLinesOfCode
-    });
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
   });
+
+  let currentRoom = null;
 
   socket.on('join-room', ({ roomId, language, username }) => {
     // Store current room
@@ -183,17 +189,6 @@ io.on('connection', (socket) => {
       username,
       participants: Array.from(room.participants.values())
     });
-
-    // Update stats when users join rooms
-    activeUsers++;
-    totalUsers++;  // Increment total users (cumulative)
-    totalSessions++;
-    io.emit('stats-update', {
-      activeUsers,
-      totalUsers,  // Send total users instead
-      totalSessions,
-      totalLinesOfCode
-    });
   });
 
   socket.on('code-change', ({ roomId, code }) => {
@@ -201,15 +196,6 @@ io.on('connection', (socket) => {
       const room = rooms.get(roomId);
       room.code = code;
       socket.to(roomId).emit('code-update', code);
-
-      // Update lines of code when code changes
-      const lines = code.split('\n').length;
-      totalLinesOfCode += lines;
-      io.emit('stats-update', {
-        activeUsers,
-        totalSessions,
-        totalLinesOfCode
-      });
     }
   });
 
@@ -263,15 +249,6 @@ io.on('connection', (socket) => {
       if (room.participants.size === 0) {
         rooms.delete(roomId);
       }
-
-      // Update stats but don't decrease totalUsers
-      activeUsers--;
-      io.emit('stats-update', {
-        activeUsers,
-        totalUsers,  // Keep the cumulative count
-        totalSessions,
-        totalLinesOfCode
-      });
     }
   });
 
@@ -308,23 +285,45 @@ io.on('connection', (socket) => {
       participants: Array.from(roomVoiceParticipants.entries())
     });
 
-    // Notify others in the room
+    // Notify others in the room about the new participant
     socket.to(roomId).emit('voice-participant-joined', {
-        userId: socket.id,
-        username
-      });
+      userId: socket.id,
+      username
+    });
+
+    // Trigger connection establishment with all existing participants
+    roomVoiceParticipants.forEach((participantUsername, participantId) => {
+      if (participantId !== socket.id) {
+        // Notify existing participant to initiate a connection
+        io.to(participantId).emit('initiate-voice-connection', {
+          targetId: socket.id,
+          username: username
+        });
+      }
+    });
   });
 
   socket.on('voice-offer', ({ target, sdp, caller }) => {
-    io.to(target).emit('voice-offer', { sdp, caller });
+    io.to(target).emit('voice-offer', {
+      sdp,
+      caller,
+      callerUsername: voiceParticipants.get(currentRoom)?.get(caller)
+    });
   });
 
   socket.on('voice-answer', ({ target, sdp }) => {
-    io.to(target).emit('voice-answer', { sdp, answerer: socket.id });
+    io.to(target).emit('voice-answer', {
+      sdp,
+      answerer: socket.id,
+      answererUsername: voiceParticipants.get(currentRoom)?.get(socket.id)
+    });
   });
 
   socket.on('voice-ice-candidate', ({ target, candidate }) => {
-    io.to(target).emit('voice-ice-candidate', { candidate, sender: socket.id });
+    io.to(target).emit('voice-ice-candidate', {
+      candidate,
+      sender: socket.id
+    });
   });
 
   socket.on('leave-voice', ({ roomId }) => {
@@ -332,10 +331,11 @@ io.on('connection', (socket) => {
       const roomVoiceParticipants = voiceParticipants.get(roomId);
       roomVoiceParticipants.delete(socket.id);
 
-      // Notify others in the room
-    io.to(roomId).emit('voice-participant-left', {
-      userId: socket.id
-    });
+      // Notify others in the room to clean up their peer connections
+      io.to(roomId).emit('voice-participant-left', {
+        userId: socket.id,
+        remainingParticipants: Array.from(roomVoiceParticipants.entries())
+      });
 
       // Clean up empty voice rooms
       if (roomVoiceParticipants.size === 0) {
@@ -344,7 +344,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
+    console.log('User disconnected:', socket.id, 'Reason:', reason);
     // Clean up if user was in a room
     if (currentRoom && rooms.has(currentRoom)) {
       const room = rooms.get(currentRoom);
@@ -363,24 +364,16 @@ io.on('connection', (socket) => {
         if (room.participants.size === 0) {
           rooms.delete(currentRoom);
         }
-
-        // Update stats but don't decrease totalUsers
-        activeUsers--;
-        io.emit('stats-update', {
-          activeUsers,
-          totalUsers,  // Keep the cumulative count
-          totalSessions,
-          totalLinesOfCode
-        });
       }
     }
     
-    // Clean up voice participants
+    // Clean up voice participants and notify others
     voiceParticipants.forEach((participants, roomId) => {
       if (participants.has(socket.id)) {
         participants.delete(socket.id);
         io.to(roomId).emit('voice-participant-left', {
-          userId: socket.id
+          userId: socket.id,
+          remainingParticipants: Array.from(participants.entries())
         });
         
         if (participants.size === 0) {
@@ -388,12 +381,26 @@ io.on('connection', (socket) => {
         }
       }
     });
-    
-    console.log('User disconnected:', socket.id);
+  });
+
+  // Add ping/pong for connection health check
+  socket.on('ping', () => {
+    socket.emit('pong');
   });
 });
 
+io.on('connect_error', (err) => {
+  console.log('Connection error:', err);
+});
+
+io.engine.on('connection_error', (err) => {
+  console.log('Connection error:', err);
+});
+
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+const HOST = 'localhost';
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server running at http://${HOST}:${PORT}`);
+  console.log('Websocket server is ready');
 }); 

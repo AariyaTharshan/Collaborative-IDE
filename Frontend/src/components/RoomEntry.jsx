@@ -1,37 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import io from 'socket.io-client';
-
-const socket = io('http://localhost:3000');
+import { useSocket } from '../context/SocketContext';
 
 const RoomEntry = ({ onJoinRoom }) => {
+  const socket = useSocket();
   const [mode, setMode] = useState('');
   const [roomId, setRoomId] = useState('');
   const [username, setUsername] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [showThankYou, setShowThankYou] = useState(false);
 
-  // Add new states for stats
-  const [stats, setStats] = useState({
-    activeUsers: 0,
-    totalSessions: 0,
-    totalLinesOfCode: 0
-  });
-
-  // Listen for stats updates
   useEffect(() => {
-    // Initial stats fetch
-    socket.emit('get-stats');
+    // Setup periodic health check
+    const healthCheck = setInterval(() => {
+      if (socket) {
+        socket.emit('ping');
+      }
+    }, 30000); // Every 30 seconds
 
-    // Listen for stats updates
-    socket.on('stats-update', (newStats) => {
-      setStats(newStats);
-    });
+    return () => clearInterval(healthCheck);
+  }, [socket]);
 
-    return () => {
-      socket.off('stats-update');
-    };
-  }, []);
-  
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!username.trim()) {
@@ -48,18 +36,18 @@ const RoomEntry = ({ onJoinRoom }) => {
   };
 
   const handleDisconnect = () => {
-    socket.disconnect();
-    setShowThankYou(true);
-    
-    // First timeout for showing the message
-    setTimeout(() => {
-      // Second timeout for closing the window
+    if (socket) {
+      // Properly close the connection
+      socket.disconnect();
+      setShowThankYou(true);
+      
       setTimeout(() => {
-        window.close(); // Close the window
-        // Fallback in case window.close() is blocked by the browser
-        window.location.href = 'about:blank';
-      }, 2000); // Close after 2 seconds
-    }, 100); // Small delay to ensure the thank you message is shown
+        setTimeout(() => {
+          window.close();
+          window.location.href = 'about:blank';
+        }, 2000);
+      }, 100);
+    }
   };
 
   if (showThankYou) {
@@ -82,7 +70,6 @@ const RoomEntry = ({ onJoinRoom }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#1A1A1A] relative">
-      {/* Add disconnect button */}
       <button
         onClick={handleDisconnect}
         className="absolute top-4 right-4 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2 z-20"
@@ -103,7 +90,6 @@ const RoomEntry = ({ onJoinRoom }) => {
         Disconnect
       </button>
 
-      {/* LeetCode-style background pattern */}
       <div 
         className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]"
         style={{
@@ -117,7 +103,6 @@ const RoomEntry = ({ onJoinRoom }) => {
       />
 
       <div className="w-11/12 max-w-md space-y-6 relative z-10">
-        {/* Title Section */}
         <div className="text-center space-y-3">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-[#FFA116] to-[#FF6B6B] text-transparent bg-clip-text">
             CodeCollab
@@ -127,9 +112,7 @@ const RoomEntry = ({ onJoinRoom }) => {
           </p>
         </div>
 
-        {/* Main Container */}
         <div className="bg-white dark:bg-[#282828] p-8 rounded-lg shadow-2xl border border-[#444]/10 dark:border-[#444]/20">
-          {/* Mode Selection */}
           <div className="flex gap-3 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg mb-8">
           <button
               className={`flex-1 py-3 rounded-md text-base font-medium transition-all duration-200 ${
@@ -210,37 +193,6 @@ const RoomEntry = ({ onJoinRoom }) => {
             </button>
           </form>
         )}
-        </div>
-
-        {/* Updated Stats Section with real data */}
-        <div className="flex justify-center gap-8 text-center">
-          <div className="relative group">
-            <div className="text-[#FFA116] text-xl font-bold">
-              {stats.activeUsers}+
-            </div>
-            <div className="text-gray-600 dark:text-gray-400 text-sm">Active Users</div>
-            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              Real-time users
-            </div>
-          </div>
-          <div className="relative group">
-            <div className="text-[#FFA116] text-xl font-bold">
-              {stats.totalSessions}+
-            </div>
-            <div className="text-gray-400 text-sm">Sessions</div>
-            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              Total coding sessions
-            </div>
-          </div>
-          <div className="relative group">
-            <div className="text-[#FFA116] text-xl font-bold">
-              {stats.totalLinesOfCode}+
-            </div>
-            <div className="text-gray-400 text-sm">Lines of Code</div>
-            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              Lines written today
-            </div>
-          </div>
         </div>
       </div>
     </div>

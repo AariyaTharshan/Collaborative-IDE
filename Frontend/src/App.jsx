@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Editor } from '@monaco-editor/react';
-import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
 import axios from 'axios';
 import RoomEntry from './components/RoomEntry';
 import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './context/ThemeContext';
 import HelpPage from './components/HelpPage';
+import { SocketProvider, useSocket } from './context/SocketContext';
 
-const App = () => {
+const AppContent = () => {
+  const socket = useSocket();
   const [isInRoom, setIsInRoom] = useState(false);
   const [roomId, setRoomId] = useState(null);
   const [username, setUsername] = useState('');
@@ -29,29 +30,10 @@ const App = () => {
   
   const peerRef = useRef(null);
   const { isDark } = useTheme();
-  const socketRef = useRef(null);
 
   useEffect(() => {
-    if (!socketRef.current) {
-      socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
-        reconnection: true,
-        reconnectionAttempts: 5,
-        transports: ['websocket']
-      });
-    }
+    if (!isInRoom) return;
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isInRoom || !socketRef.current) return;
-
-    const socket = socketRef.current;
     socket.emit('join-room', { roomId, language, username });
 
     socket.on('room-state', ({ language: roomLanguage, code: roomCode, participants: roomParticipants, isHost }) => {
@@ -138,7 +120,7 @@ const App = () => {
       socket.off('voice-participant-left');
       socket.off('call-accepted');
     };
-  }, [isInRoom, roomId]);
+  }, [isInRoom, roomId, socket]);
 
   const handleJoinRoom = (newRoomId, selectedLanguage, userUsername) => {
     setRoomId(newRoomId);
@@ -149,7 +131,7 @@ const App = () => {
 
   const handleCodeChange = (newCode) => {
     setCode(newCode);
-    socketRef.current?.emit('code-change', { roomId, code: newCode });
+    socket?.emit('code-change', { roomId, code: newCode });
   };
 
   const handleCompile = async () => {
@@ -186,7 +168,7 @@ const App = () => {
   const sendMessage = (e) => {
     e.preventDefault();
     if (newMessage.trim()) {
-      socketRef.current?.emit('chat-message', {
+      socket?.emit('chat-message', {
         roomId,
         message: newMessage
       });
@@ -202,7 +184,7 @@ const App = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
-    socketRef.current?.emit('leave-room', { roomId });
+    socket?.emit('leave-room', { roomId });
     setIsInRoom(false);
     setMessages([]);
     setCode('// Start coding here...');
@@ -213,7 +195,7 @@ const App = () => {
 
   const handleEndRoom = () => {
     if (isHost) {
-      socketRef.current?.emit('end-room', { roomId });
+      socket?.emit('end-room', { roomId });
       handleLeaveRoom();
     }
   };
@@ -229,18 +211,18 @@ const App = () => {
       setIsCallActive(true);
 
       // Add self to voice participants and notify others
-      socketRef.current.emit('join-voice', { 
+      socket?.emit('join-voice', { 
         roomId,
-        userId: socketRef.current.id,
+        userId: socket.id,
         username 
       });
 
       // Listen for new peers joining
-      socketRef.current?.on('user-joined-voice', ({ userId, username }) => {
+      socket?.on('user-joined-voice', ({ userId, username }) => {
         console.log('User joined voice:', userId, username);
         setVoiceParticipants(prev => new Map(prev).set(userId, username));
         
-        if (userId !== socketRef.current.id) {
+        if (userId !== socket.id) {
           const peerConnection = new RTCPeerConnection({
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
@@ -257,9 +239,9 @@ const App = () => {
           peerConnection.createOffer()
             .then(offer => peerConnection.setLocalDescription(offer))
             .then(() => {
-              socketRef.current?.emit('voice-offer', {
+              socket?.emit('voice-offer', {
                 target: userId,
-                caller: socketRef.current.id,
+                caller: socket.id,
                 sdp: peerConnection.localDescription
               });
             });
@@ -269,7 +251,7 @@ const App = () => {
       });
 
       // Handle voice offers
-      socketRef.current?.on('voice-offer', async ({ sdp, caller }) => {
+      socket?.on('voice-offer', async ({ sdp, caller }) => {
         const peerConnection = new RTCPeerConnection({
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -289,7 +271,7 @@ const App = () => {
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
 
-        socketRef.current?.emit('voice-answer', {
+        socket?.emit('voice-answer', {
           target: caller,
           sdp: peerConnection.localDescription
         });
@@ -298,7 +280,7 @@ const App = () => {
       });
 
       // Handle voice answers
-      socketRef.current?.on('voice-answer', async ({ sdp, answerer }) => {
+      socket?.on('voice-answer', async ({ sdp, answerer }) => {
         const peerConnection = peerConnections.get(answerer);
         if (peerConnection) {
           await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -306,7 +288,7 @@ const App = () => {
       });
 
       // Handle participant leaving voice
-      socketRef.current?.on('voice-participant-left', ({ userId }) => {
+      socket?.on('voice-participant-left', ({ userId }) => {
         console.log('User left voice:', userId);
         setVoiceParticipants(prev => {
           const newMap = new Map(prev);
@@ -366,7 +348,7 @@ const App = () => {
       });
 
       newPeer.on('signal', (data) => {
-        socketRef.current?.emit('answer-call', { signal: data, to: from });
+        socket?.emit('answer-call', { signal: data, to: from });
       });
 
       newPeer.on('stream', (remoteStream) => {
@@ -384,7 +366,7 @@ const App = () => {
       newPeer.signal(incomingSignal);
       peerRef.current = newPeer;
       setIsCallActive(true);
-      socketRef.current?.emit('join-voice', { roomId });
+      socket?.emit('join-voice', { roomId });
 
     } catch (err) {
       console.error('Failed to handle incoming call:', err);
@@ -407,9 +389,9 @@ const App = () => {
       setIsCallActive(false);
 
       // Notify server about leaving voice
-      socketRef.current.emit('leave-voice', { 
+      socket?.emit('leave-voice', { 
         roomId,
-        userId: socketRef.current.id 
+        userId: socket.id 
       });
 
     } catch (error) {
@@ -419,7 +401,7 @@ const App = () => {
 
   const handleLanguageChange = (newLanguage) => {
     if (isHost) {
-      socketRef.current?.emit('change-language', { roomId, newLanguage });
+      socket?.emit('change-language', { roomId, newLanguage });
     }
   };
 
@@ -477,7 +459,7 @@ const App = () => {
                     <li key={userId} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                       <span className="w-2 h-2 rounded-full bg-[#FFA116]"></span>
                       {name}
-                      {userId === socketRef.current.id && " (You)"}
+                      {userId === socket.id && " (You)"}
                     </li>
                   ))}
                 </ul>
@@ -603,7 +585,7 @@ const App = () => {
               <div className="h-[calc(100%-4rem)]">
                 <Editor
                   height="100%"
-                  defaultLanguage={language}
+                  language={language}
                   value={code}
                   onChange={handleCodeChange}
                   theme={isDark ? "vs-dark" : "light"}
@@ -630,89 +612,297 @@ const App = () => {
                     },
                     'editor.snippetSuggestions': 'top',
                   }}
-                  beforeMount={(monaco) => {
-                    monaco.languages.registerCompletionItemProvider('javascript', {
-                      provideCompletionItems: () => {
-                        return {
-                          suggestions: [
-                            {
-                              label: 'cl',
-                              kind: monaco.languages.CompletionItemKind.Snippet,
-                              insertText: 'console.log(${1:value});',
-                              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                              detail: 'Console log statement',
-                              documentation: 'Prints to console'
-                            },
-                            {
-                              label: 'fn',
-                              kind: monaco.languages.CompletionItemKind.Snippet,
-                              insertText: [
-                                'function ${1:name}(${2:params}) {',
-                                '\t${3:// code here}',
-                                '}'
-                              ].join('\n'),
-                              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                              detail: 'Function declaration'
-                            },
-                            {
-                              label: 'afn',
-                              kind: monaco.languages.CompletionItemKind.Snippet,
-                              insertText: 'const ${1:name} = (${2:params}) => {\n\t${3:// code here}\n}',
-                              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                              detail: 'Arrow function'
-                            },
-                          ]
-                        };
+                  onMount={(editor, monaco) => {
+                    // This will ensure snippets are available when switching languages
+                    const updateLanguage = () => {
+                      const model = editor.getModel();
+                      if (model) {
+                        monaco.editor.setModelLanguage(model, language);
                       }
+                    };
+                    updateLanguage();
+                  }}
+                  beforeMount={(monaco) => {
+                    // Add Java snippets
+                    monaco.languages.registerCompletionItemProvider('java', {
+                      provideCompletionItems: () => ({
+                        suggestions: [
+                          {
+                            label: 'psvm',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'public static void main(String[] args) {',
+                              '\t${1:// code here}',
+                              '}'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Public static void main'
+                          },
+                          {
+                            label: 'sout',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'System.out.println(${1:value});',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Print to console'
+                          },
+                          {
+                            label: 'class',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'public class ${1:ClassName} {',
+                              '\t${2:// code here}',
+                              '}'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Public class declaration'
+                          },
+                          {
+                            label: 'fori',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'for (int ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++) {\n\t${3:// code}\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'For loop with index'
+                          },
+                          {
+                            label: 'try',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'try {',
+                              '\t${1:// code}',
+                              '} catch (${2:Exception} e) {',
+                              '\t${3:e.printStackTrace();}',
+                              '}'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Try-catch block'
+                          },
+                          {
+                            label: 'scanner',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'Scanner scanner = new Scanner(System.in);',
+                              '${1:// code}',
+                              'scanner.close();'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Scanner for input'
+                          },
+                          {
+                            label: 'list',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'List<${1:Type}> ${2:list} = new ArrayList<>();',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'ArrayList declaration'
+                          },
+                          {
+                            label: 'map',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'Map<${1:KeyType}, ${2:ValueType}> ${3:map} = new HashMap<>();',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'HashMap declaration'
+                          }
+                        ]
+                      })
+                    });
+
+                    monaco.languages.registerCompletionItemProvider('javascript', {
+                      provideCompletionItems: () => ({
+                        suggestions: [
+                          {
+                            label: 'cl',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'console.log(${1:value});',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Console log statement',
+                            documentation: 'Prints to console'
+                          },
+                          {
+                            label: 'fn',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'function ${1:name}(${2:params}) {',
+                              '\t${3:// code here}',
+                              '}'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Function declaration'
+                          },
+                          {
+                            label: 'afn',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'const ${1:name} = (${2:params}) => {\n\t${3:// code here}\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Arrow function'
+                          },
+                          {
+                            label: 'try',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'try {\n\t${1:// code}\n} catch (error) {\n\t${2:console.error(error);}\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Try-catch block'
+                          },
+                          {
+                            label: 'promise',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'new Promise((resolve, reject) => {\n\t${1:// code}\n})',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Create new Promise'
+                          },
+                          {
+                            label: 'async',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'async function ${1:name}(${2:params}) {\n\ttry {\n\t\t${3:// code}\n\t} catch (error) {\n\t\t${4:console.error(error);}\n\t}\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Async function'
+                          },
+                          {
+                            label: 'map',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'const ${1:newArray} = ${2:array}.map(${3:item} => {\n\t${4:return item;}\n});',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Array map method'
+                          },
+                          {
+                            label: 'fetch',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'try {',
+                              '\tconst response = await fetch(${1:url});',
+                              '\tconst data = await response.json();',
+                              '\t${2:console.log(data);}',
+                              '} catch (error) {',
+                              '\tconsole.error(\'Error:\', error);',
+                              '}'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Fetch API with error handling'
+                          }
+                        ]
+                      })
                     });
 
                     monaco.languages.registerCompletionItemProvider('python', {
-                      provideCompletionItems: () => {
-                        return {
-                          suggestions: [
-                            {
-                              label: 'def',
-                              kind: monaco.languages.CompletionItemKind.Snippet,
-                              insertText: 'def ${1:function_name}(${2:params}):\n\t${3:pass}',
-                              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                              detail: 'Function definition'
-                            },
-                            {
-                              label: 'class',
-                              kind: monaco.languages.CompletionItemKind.Snippet,
-                              insertText: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',
-                              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                              detail: 'Class definition'
-                            },
-                          ]
-                        };
-                      }
+                      provideCompletionItems: () => ({
+                        suggestions: [
+                          {
+                            label: 'def',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'def ${1:function_name}(${2:params}):\n\t${3:pass}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Function definition'
+                          },
+                          {
+                            label: 'class',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Class definition'
+                          },
+                          {
+                            label: 'for',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'for ${1:item} in ${2:iterable}:\n\t${3:pass}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'For loop'
+                          },
+                          {
+                            label: 'if',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'if ${1:condition}:\n\t${2:pass}\nelif ${3:condition}:\n\t${4:pass}\nelse:\n\t${5:pass}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'If-elif-else statement'
+                          },
+                          {
+                            label: 'try',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'try:\n\t${1:pass}\nexcept ${2:Exception} as e:\n\t${3:print(e)}\nfinally:\n\t${4:pass}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Try-except block'
+                          },
+                          {
+                            label: 'list',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: '[${1:item} for ${2:item} in ${3:iterable} if ${4:condition}]',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'List comprehension'
+                          },
+                          {
+                            label: 'main',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'if __name__ == "__main__":\n\t${1:main()}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Main guard'
+                          }
+                        ]
+                      })
                     });
 
                     monaco.languages.registerCompletionItemProvider('cpp', {
-                      provideCompletionItems: () => {
-                        return {
-                          suggestions: [
-                            {
-                              label: 'cp',
-                              kind: monaco.languages.CompletionItemKind.Snippet,
-                              insertText: [
-                                '#include <bits/stdc++.h>',
-                                'using namespace std;',
-                                '',
-                                'int main() {',
-                                '\tios::sync_with_stdio(0);',
-                                '\tcin.tie(0);',
-                                '\t${1:// code here}',
-                                '\treturn 0;',
-                                '}'
-                              ].join('\n'),
-                              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                              detail: 'Competitive programming template'
-                            },
-                          ]
-                        };
-                      }
+                      provideCompletionItems: () => ({
+                        suggestions: [
+                          {
+                            label: 'cp',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              '#include <bits/stdc++.h>',
+                              'using namespace std;',
+                              '',
+                              'int main() {',
+                              '\tios::sync_with_stdio(0);',
+                              '\tcin.tie(0);',
+                              '\t${1:// code here}',
+                              '\treturn 0;',
+                              '}'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Competitive programming template'
+                          },
+                          {
+                            label: 'for',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'for(int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n\t${3:// code}\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'For loop'
+                          },
+                          {
+                            label: 'vector',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'vector<${1:int}> ${2:v};',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Vector declaration'
+                          },
+                          {
+                            label: 'try',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'try {\n\t${1:// code}\n} catch (const exception& e) {\n\tcerr << e.what() << endl;\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Try-catch block'
+                          },
+                          {
+                            label: 'class',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: [
+                              'class ${1:ClassName} {',
+                              'private:',
+                              '\t${2:// private members}',
+                              'public:',
+                              '\t${1:ClassName}() {',
+                              '\t\t${3:// constructor}',
+                              '\t}',
+                              '};'
+                            ].join('\n'),
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Class declaration'
+                          },
+                          {
+                            label: 'sort',
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: 'sort(${1:v}.begin(), ${1:v}.end());',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            detail: 'Sort vector'
+                          }
+                        ]
+                      })
                     });
 
                     monaco.languages.registerCompletionItemProvider('*', {
@@ -784,6 +974,14 @@ const App = () => {
         <ThemeToggle />
       </div>
     </div>
+  );
+};
+
+const App = () => {
+  return (
+    <SocketProvider>
+      <AppContent />
+    </SocketProvider>
   );
 };
 
