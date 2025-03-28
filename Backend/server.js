@@ -36,7 +36,6 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:3000',
     'https://collabcode-ide.vercel.app',
-    'https://collaborative-ide-k4rx.onrender.com'
   ],
   methods: ['GET', 'POST'],
   credentials: true,
@@ -397,10 +396,8 @@ io.engine.on('connection_error', (err) => {
   console.log('Connection error:', err);
 });
 
-const PORT = process.env.PORT || 3000;
-const HOST = 'localhost';
 
 server.listen(PORT, HOST, () => {
-  console.log(`Server running at http://${HOST}:${PORT}`);
+  console.log(`Server running`);
   console.log('Websocket server is ready');
 }); 
