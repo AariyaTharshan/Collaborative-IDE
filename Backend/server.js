@@ -397,7 +397,7 @@ io.engine.on('connection_error', (err) => {
 });
 
 
-server.listen(PORT, HOST, () => {
+server.listen(() => {
   console.log(`Server running`);
   console.log('Websocket server is ready');
 }); 
