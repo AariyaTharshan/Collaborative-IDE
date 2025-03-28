@@ -396,8 +396,9 @@ io.engine.on('connection_error', (err) => {
   console.log('Connection error:', err);
 });
 
+const PORT = process.env.PORT || 3000;
 
-server.listen(() => {
-  console.log(`Server running`);
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
   console.log('Websocket server is ready');
 }); 
