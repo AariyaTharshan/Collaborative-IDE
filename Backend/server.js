@@ -43,6 +43,76 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Add this to your server.js
+const codeTemplates = {
+  cpp: {
+    basic: `#include <bits/stdc++.h>
+using namespace std;
+
+void solve() {
+    // Your solution here
+}
+
+int main() {
+    ios::sync_with_stdio(0);
+    cin.tie(0);
+    int t = 1;
+    // cin >> t;
+    while(t--) solve();
+    return 0;
+}`,
+    dataStructures: `#include <bits/stdc++.h>
+using namespace std;
+
+// Common DS implementations
+struct DSU {
+    vector<int> parent, size;
+    DSU(int n) : parent(n), size(n, 1) {
+        iota(parent.begin(), parent.end(), 0);
+    }
+    int find(int x) {
+        if(parent[x] == x) return x;
+        return parent[x] = find(parent[x]);
+    }
+    void unite(int x, int y) {
+        x = find(x), y = find(y);
+        if(x != y) {
+            if(size[x] < size[y]) swap(x, y);
+            parent[y] = x;
+            size[x] += size[y];
+        }
+    }
+};`
+  },
+  python: {
+    basic: `from collections import defaultdict, Counter, deque
+from heapq import heappush, heappop
+import math
+
+def solve():
+    # Your solution here
+    pass
+
+if __name__ == "__main__":
+    t = 1
+    // t = int(input())
+    for _ in range(t):
+        solve()`,
+    algorithms: `# Binary Search Template
+def binary_search(arr, target):
+    left, right = 0, len(arr) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1`
+  }
+};
+
 // Handle code compilation
 app.post('/compile', async (req, res) => {
   const { code, language, input } = req.body;
@@ -130,6 +200,121 @@ app.post('/compile', async (req, res) => {
 // Add this near your other endpoints
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Add new endpoint to get templates
+app.get('/templates/:language', (req, res) => {
+  const { language } = req.params;
+  if (codeTemplates[language]) {
+    res.json(codeTemplates[language]);
+  } else {
+    res.status(404).json({ error: 'Templates not found for this language' });
+  }
+});
+
+// Add problem categories and suggestions
+const problemSuggestions = {
+  beginner: [
+    {
+      title: "Two Sum",
+      difficulty: "Easy",
+      category: "Arrays",
+      description: "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
+      template: "function twoSum(nums, target) {\n    // Your code here\n}",
+      testCases: [
+        { input: "[2,7,11,15], 9", output: "[0,1]" },
+        { input: "[3,2,4], 6", output: "[1,2]" }
+      ]
+    }
+    // Add more problems...
+  ]
+};
+
+app.get('/problems/:difficulty', (req, res) => {
+  const { difficulty } = req.params;
+  const problems = problemSuggestions[difficulty] || [];
+  res.json(problems);
+});
+
+// Add complexity analysis endpoint
+app.post('/analyze', async (req, res) => {
+  const { code, language } = req.body;
+  
+  // Basic complexity patterns
+  const patterns = {
+    'O(n)': /for\s*\([^)]*\)/g,
+    'O(n²)': /for\s*\([^)]*\)[^{]*{[^}]*for\s*\([^)]*\)/g,
+    'O(log n)': /while\s*\([^)]*\/=\s*2\)/g
+  };
+
+  let complexity = 'O(1)';
+  for (const [big_o, pattern] of Object.entries(patterns)) {
+    if (pattern.test(code)) {
+      complexity = big_o;
+    }
+  }
+
+  res.json({ timeComplexity: complexity });
+});
+
+const learningResources = {
+  algorithms: [
+    {
+      topic: "Dynamic Programming",
+      resources: [
+        {
+          title: "Introduction to DP",
+          type: "video",
+          url: "https://example.com/dp-intro"
+        },
+        {
+          title: "Common DP Patterns",
+          type: "article",
+          url: "https://example.com/dp-patterns"
+        }
+      ]
+    }
+    // Add more topics...
+  ]
+};
+
+app.get('/resources/:topic', (req, res) => {
+  const { topic } = req.params;
+  const resources = learningResources[topic] || [];
+  res.json(resources);
+});
+
+// Add test case generator
+app.post('/generate-tests', (req, res) => {
+  const { type, params } = req.body;
+  
+  const generateArray = (size, max) => {
+    return Array.from({ length: size }, () => 
+      Math.floor(Math.random() * max)
+    );
+  };
+
+  const generators = {
+    array: (params) => generateArray(params.size, params.maxValue),
+    string: (params) => {
+      const chars = 'abcdefghijklmnopqrstuvwxyz';
+      return Array.from({ length: params.length }, 
+        () => chars[Math.floor(Math.random() * chars.length)]
+      ).join('');
+    },
+    tree: (params) => {
+      // Generate binary tree test cases
+      const nodes = params.nodes;
+      return Array.from({ length: nodes }, (_, i) => ({
+        value: i,
+        left: i * 2 + 1 < nodes ? i * 2 + 1 : null,
+        right: i * 2 + 2 < nodes ? i * 2 + 2 : null
+      }));
+    }
+  };
+
+  const testCases = generators[type](params);
+  res.json({ testCases });
 });
 
 // Socket.IO connection handling

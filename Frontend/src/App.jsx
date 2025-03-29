@@ -7,6 +7,7 @@ import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './context/ThemeContext';
 import HelpPage from './components/HelpPage';
 import { SocketProvider, useSocket } from './context/SocketContext';
+import Problems from './components/Problems';
 
 const AppContent = () => {
   const socket = useSocket();
@@ -30,6 +31,8 @@ const AppContent = () => {
   
   const peerRef = useRef(null);
   const { isDark } = useTheme();
+  const [complexity, setComplexity] = useState({ time: 'O(1)', space: 'O(1)' });
+  const [isProblemsPanelOpen, setIsProblemsPanelOpen] = useState(false);
 
   useEffect(() => {
     if (!isInRoom) return;
@@ -132,6 +135,46 @@ const AppContent = () => {
   const handleCodeChange = (newCode) => {
     setCode(newCode);
     socket?.emit('code-change', { roomId, code: newCode });
+    analyzeComplexity(newCode);
+  };
+
+  const analyzeComplexity = (code) => {
+    const patterns = {
+      time: {
+        'O(1)': /^[^{]*{[^}]*}$/,
+        'O(log n)': /while.*\/= 2|for.*\/= 2/,
+        'O(n)': /for.*\+\+|while.*\+\+/,
+        'O(n log n)': /sort\(|mergeSort|quickSort/,
+        'O(n²)': /for.*for|while.*while/,
+        'O(2ⁿ)': /fibonacci|permutations/
+      },
+      space: {
+        'O(1)': /^[^{]*{(?![^}]*(?:vector|array|list|map|set))[^}]*}$/,
+        'O(n)': /vector|array|list|map|set/,
+        'O(n²)': /vector.*vector|array.*array/
+      }
+    };
+
+    let timeComplexity = 'O(1)';
+    let spaceComplexity = 'O(1)';
+
+    // Check time complexity
+    for (const [complexity, pattern] of Object.entries(patterns.time)) {
+      if (pattern.test(code)) {
+        timeComplexity = complexity;
+        break;
+      }
+    }
+
+    // Check space complexity
+    for (const [complexity, pattern] of Object.entries(patterns.space)) {
+      if (pattern.test(code)) {
+        spaceComplexity = complexity;
+        break;
+      }
+    }
+
+    setComplexity({ time: timeComplexity, space: spaceComplexity });
   };
 
   const handleCompile = async () => {
@@ -583,382 +626,103 @@ const AppContent = () => {
                 </div>
               </div>
               <div className="h-[calc(100%-4rem)]">
-                <Editor
-                  height="100%"
-                  language={language}
-                  value={code}
-                  onChange={handleCodeChange}
-                  theme={isDark ? "vs-dark" : "light"}
-                  options={{
-                    fontSize: 14,
-                    minimap: { enabled: false },
-                    automaticLayout: true,
-                    padding: { top: 16, bottom: 16 },
-                    suggestOnTriggerCharacters: true,
-                    quickSuggestions: true,
-                    snippetSuggestions: "inline",
-                    wordBasedSuggestions: true,
-                    parameterHints: {
-                      enabled: true
-                    },
-                    suggest: {
-                      showKeywords: true,
-                      showSnippets: true,
-                      showClasses: true,
-                      showFunctions: true,
-                      showVariables: true,
-                      showWords: true,
-                      showMethods: true,
-                    },
-                    'editor.snippetSuggestions': 'top',
-                  }}
-                  onMount={(editor, monaco) => {
-                    // This will ensure snippets are available when switching languages
-                    const updateLanguage = () => {
-                      const model = editor.getModel();
-                      if (model) {
-                        monaco.editor.setModelLanguage(model, language);
-                      }
-                    };
-                    updateLanguage();
-                  }}
-                  beforeMount={(monaco) => {
-                    // Add Java snippets
-                    monaco.languages.registerCompletionItemProvider('java', {
-                      provideCompletionItems: () => ({
-                        suggestions: [
-                          {
-                            label: 'psvm',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'public static void main(String[] args) {',
-                              '\t${1:// code here}',
-                              '}'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Public static void main'
-                          },
-                          {
-                            label: 'sout',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'System.out.println(${1:value});',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Print to console'
-                          },
-                          {
-                            label: 'class',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'public class ${1:ClassName} {',
-                              '\t${2:// code here}',
-                              '}'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Public class declaration'
-                          },
-                          {
-                            label: 'fori',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'for (int ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++) {\n\t${3:// code}\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'For loop with index'
-                          },
-                          {
-                            label: 'try',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'try {',
-                              '\t${1:// code}',
-                              '} catch (${2:Exception} e) {',
-                              '\t${3:e.printStackTrace();}',
-                              '}'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Try-catch block'
-                          },
-                          {
-                            label: 'scanner',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'Scanner scanner = new Scanner(System.in);',
-                              '${1:// code}',
-                              'scanner.close();'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Scanner for input'
-                          },
-                          {
-                            label: 'list',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'List<${1:Type}> ${2:list} = new ArrayList<>();',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'ArrayList declaration'
-                          },
-                          {
-                            label: 'map',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'Map<${1:KeyType}, ${2:ValueType}> ${3:map} = new HashMap<>();',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'HashMap declaration'
-                          }
-                        ]
-                      })
-                    });
+                <div className="flex flex-col h-full">
+                  {/* Problems Panel Toggle Button - Now on right */}
+                  <button
+                    onClick={() => setIsProblemsPanelOpen(!isProblemsPanelOpen)}
+                    className="fixed right-4 top-20 z-10 px-4 py-2 bg-[#FFA116] text-white rounded-lg hover:bg-[#FF9100] transition-colors flex items-center gap-2"
+                  >
+                    <span>Problems</span>
+                    <svg 
+                      className={`w-5 h-5 transition-transform ${isProblemsPanelOpen ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
 
-                    monaco.languages.registerCompletionItemProvider('javascript', {
-                      provideCompletionItems: () => ({
-                        suggestions: [
-                          {
-                            label: 'cl',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'console.log(${1:value});',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Console log statement',
-                            documentation: 'Prints to console'
-                          },
-                          {
-                            label: 'fn',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'function ${1:name}(${2:params}) {',
-                              '\t${3:// code here}',
-                              '}'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Function declaration'
-                          },
-                          {
-                            label: 'afn',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'const ${1:name} = (${2:params}) => {\n\t${3:// code here}\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Arrow function'
-                          },
-                          {
-                            label: 'try',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'try {\n\t${1:// code}\n} catch (error) {\n\t${2:console.error(error);}\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Try-catch block'
-                          },
-                          {
-                            label: 'promise',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'new Promise((resolve, reject) => {\n\t${1:// code}\n})',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Create new Promise'
-                          },
-                          {
-                            label: 'async',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'async function ${1:name}(${2:params}) {\n\ttry {\n\t\t${3:// code}\n\t} catch (error) {\n\t\t${4:console.error(error);}\n\t}\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Async function'
-                          },
-                          {
-                            label: 'map',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'const ${1:newArray} = ${2:array}.map(${3:item} => {\n\t${4:return item;}\n});',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Array map method'
-                          },
-                          {
-                            label: 'fetch',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'try {',
-                              '\tconst response = await fetch(${1:url});',
-                              '\tconst data = await response.json();',
-                              '\t${2:console.log(data);}',
-                              '} catch (error) {',
-                              '\tconsole.error(\'Error:\', error);',
-                              '}'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Fetch API with error handling'
-                          }
-                        ]
-                      })
-                    });
+                  {/* Problems Panel - Now slides from right */}
+                  <div className={`fixed right-0 top-0 h-full bg-white dark:bg-[#282828] shadow-lg transition-transform duration-300 transform z-20 ${
+                    isProblemsPanelOpen ? 'translate-x-0' : 'translate-x-full'
+                  }`} style={{ width: '400px', marginTop: '64px' }}>
+                    <div className="h-full overflow-y-auto">
+                      <Problems 
+                        onSelectProblem={(problem) => {
+                          setCode(problem.template);
+                          setIsProblemsPanelOpen(false);
+                        }}
+                        onClose={() => setIsProblemsPanelOpen(false)}
+                      />
+                    </div>
+                  </div>
 
-                    monaco.languages.registerCompletionItemProvider('python', {
-                      provideCompletionItems: () => ({
-                        suggestions: [
-                          {
-                            label: 'def',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'def ${1:function_name}(${2:params}):\n\t${3:pass}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Function definition'
-                          },
-                          {
-                            label: 'class',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Class definition'
-                          },
-                          {
-                            label: 'for',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'for ${1:item} in ${2:iterable}:\n\t${3:pass}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'For loop'
-                          },
-                          {
-                            label: 'if',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'if ${1:condition}:\n\t${2:pass}\nelif ${3:condition}:\n\t${4:pass}\nelse:\n\t${5:pass}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'If-elif-else statement'
-                          },
-                          {
-                            label: 'try',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'try:\n\t${1:pass}\nexcept ${2:Exception} as e:\n\t${3:print(e)}\nfinally:\n\t${4:pass}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Try-except block'
-                          },
-                          {
-                            label: 'list',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: '[${1:item} for ${2:item} in ${3:iterable} if ${4:condition}]',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'List comprehension'
-                          },
-                          {
-                            label: 'main',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'if __name__ == "__main__":\n\t${1:main()}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Main guard'
-                          }
-                        ]
-                      })
-                    });
+                  {/* Main Editor */}
+                  <div className="flex-1">
+                    <Editor
+                      height="100%"
+                      language={language}
+                      value={code}
+                      onChange={handleCodeChange}
+                      theme={isDark ? "vs-dark" : "light"}
+                      options={{
+                        fontSize: 14,
+                        minimap: { enabled: false },
+                        automaticLayout: true,
+                        padding: { top: 16, bottom: 16 },
+                        suggestOnTriggerCharacters: true,
+                        quickSuggestions: true,
+                        snippetSuggestions: "inline",
+                        wordBasedSuggestions: true,
+                        parameterHints: {
+                          enabled: true
+                        },
+                        suggest: {
+                          showKeywords: true,
+                          showSnippets: true,
+                          showClasses: true,
+                          showFunctions: true,
+                          showVariables: true,
+                          showWords: true,
+                          showMethods: true,
+                        },
+                        'editor.snippetSuggestions': 'top',
+                      }}
+                    />
+                  </div>
 
-                    monaco.languages.registerCompletionItemProvider('cpp', {
-                      provideCompletionItems: () => ({
-                        suggestions: [
-                          {
-                            label: 'cp',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              '#include <bits/stdc++.h>',
-                              'using namespace std;',
-                              '',
-                              'int main() {',
-                              '\tios::sync_with_stdio(0);',
-                              '\tcin.tie(0);',
-                              '\t${1:// code here}',
-                              '\treturn 0;',
-                              '}'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Competitive programming template'
-                          },
-                          {
-                            label: 'for',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'for(int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n\t${3:// code}\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'For loop'
-                          },
-                          {
-                            label: 'vector',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'vector<${1:int}> ${2:v};',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Vector declaration'
-                          },
-                          {
-                            label: 'try',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'try {\n\t${1:// code}\n} catch (const exception& e) {\n\tcerr << e.what() << endl;\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Try-catch block'
-                          },
-                          {
-                            label: 'class',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: [
-                              'class ${1:ClassName} {',
-                              'private:',
-                              '\t${2:// private members}',
-                              'public:',
-                              '\t${1:ClassName}() {',
-                              '\t\t${3:// constructor}',
-                              '\t}',
-                              '};'
-                            ].join('\n'),
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Class declaration'
-                          },
-                          {
-                            label: 'sort',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: 'sort(${1:v}.begin(), ${1:v}.end());',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Sort vector'
-                          }
-                        ]
-                      })
-                    });
+                  {/* Output Section */}
+                  <div className="h-[30%] bg-white dark:bg-[#282828] rounded-lg shadow-sm p-4">
+                    <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
+                    <div className="flex flex-col h-[calc(100%-2rem)] gap-3">
+                      <div className="flex-1">
+                        <textarea
+                          value={programInput}
+                          onChange={(e) => setProgramInput(e.target.value)}
+                          placeholder="Program input (one per line)..."
+                          className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <pre className="h-full p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm">
+                          {output}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
 
-                    monaco.languages.registerCompletionItemProvider('*', {
-                      triggerCharacters: ['.', ' '],
-                      provideCompletionItems: (model, position) => {
-                        const lineContent = model.getLineContent(position.lineNumber);
-                        const wordUntilPosition = model.getWordUntilPosition(position);
-                        
-                        const suggestions = [];
-                        
-                        if (lineContent.includes('for')) {
-                          suggestions.push({
-                            label: 'Loop template',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: '(let i = 0; i < ${1:length}; i++) {\n\t${2:// code}\n}',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'For loop with iterator',
-                            sortText: '0'
-                          });
-                        }
-
-                        if (lineContent.includes('array') || lineContent.includes('[]')) {
-                          suggestions.push({
-                            label: 'Array methods',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: '.${1|map,filter,reduce,forEach,find,some,every|}((${2:item}) => ${3:// code})',
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            detail: 'Common array methods',
-                            sortText: '0'
-                          });
-                        }
-
-                        return { suggestions };
-                      }
-                    });
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Output Section */}
-            <div className="h-[30%] bg-white dark:bg-[#282828] rounded-lg shadow-sm p-4">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
-              <div className="flex flex-col h-[calc(100%-2rem)] gap-3">
-                <div className="flex-1">
-                  <textarea
-                    value={programInput}
-                    onChange={(e) => setProgramInput(e.target.value)}
-                    placeholder="Program input (one per line)..."
-                    className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
-                  />
-                </div>
-                <div className="flex-1">
-                  <pre className="h-full p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm">
-                    {output}
-                  </pre>
+                  {/* Complexity Analysis */}
+                  <div className="flex gap-4 mb-4">
+                    <div className="px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Time: </span>
+                      <span className="font-mono">{complexity.time}</span>
+                    </div>
+                    <div className="px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Space: </span>
+                      <span className="font-mono">{complexity.space}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
