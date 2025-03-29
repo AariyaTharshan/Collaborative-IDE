@@ -13,27 +13,72 @@ const Problems = ({ onSelectProblem, onClose }) => {
       id: 1,
       title: "Two Sum",
       difficulty: "Easy",
+      description: "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
       url: "https://leetcode.com/problems/two-sum"
     },
     {
       id: 2,
       title: "Add Two Numbers",
       difficulty: "Medium",
+      description: "Given two non-empty linked lists representing two non-negative integers. The digits are stored in reverse order, and each node contains a single digit.",
       url: "https://leetcode.com/problems/add-two-numbers"
     },
     {
       id: 3,
       title: "Longest Substring Without Repeating Characters",
       difficulty: "Medium",
+      description: "Given a string s, find the length of the longest substring without repeating characters.",
       url: "https://leetcode.com/problems/longest-substring-without-repeating-characters"
     },
     {
       id: 4,
       title: "Median of Two Sorted Arrays",
       difficulty: "Hard",
+      description: "Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays.",
       url: "https://leetcode.com/problems/median-of-two-sorted-arrays"
     },
-    // Add more problems here
+    {
+      id: 5,
+      title: "Valid Parentheses",
+      difficulty: "Easy",
+      description: "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.",
+      url: "https://leetcode.com/problems/valid-parentheses"
+    },
+    {
+      id: 6,
+      title: "Merge k Sorted Lists",
+      difficulty: "Hard",
+      description: "You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list.",
+      url: "https://leetcode.com/problems/merge-k-sorted-lists"
+    },
+    {
+      id: 7,
+      title: "Best Time to Buy and Sell Stock",
+      difficulty: "Easy",
+      description: "You are given an array prices where prices[i] is the price of a given stock on the ith day. Maximize your profit by choosing a single day to buy and a single day to sell.",
+      url: "https://leetcode.com/problems/best-time-to-buy-and-sell-stock"
+    },
+    {
+      id: 8,
+      title: "Maximum Subarray",
+      difficulty: "Medium",
+      description: "Given an integer array nums, find the contiguous subarray which has the largest sum and return its sum.",
+      url: "https://leetcode.com/problems/maximum-subarray"
+    },
+    {
+      id: 9,
+      title: "Word Search",
+      difficulty: "Medium",
+      description: "Given an m x n grid of characters board and a string word, return true if word exists in the grid. The word can be constructed from letters of sequentially adjacent cells.",
+      url: "https://leetcode.com/problems/word-search"
+    },
+    {
+      id: 10,
+      title: "Regular Expression Matching",
+      difficulty: "Hard",
+      description: "Given an input string s and a pattern p, implement regular expression matching with support for '.' and '*' where '.' matches any single character and '*' matches zero or more of the preceding element.",
+      url: "https://leetcode.com/problems/regular-expression-matching"
+    }
   ];
 
   useEffect(() => {
@@ -113,6 +158,9 @@ const Problems = ({ onSelectProblem, onClose }) => {
                   <h3 className="font-medium text-gray-900 dark:text-white">
                     {problem.id}. {problem.title}
                   </h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    {problem.description}
+                  </p>
                 </div>
                 <span className={`px-2 py-1 text-xs rounded ${
                   problem.difficulty === 'Easy' ? 'bg-green-100 text-green-800' :
