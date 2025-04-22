@@ -1,216 +1,148 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useMonaco } from '@monaco-editor/react';
 
 const HelpPage = ({ isOpen, onClose }) => {
+  const monaco = useMonaco();
+
+  useEffect(() => {
+    if (!monaco) return;
+
+    const snippets = {
+      javascript: [
+        {
+          trigger: 'cl',
+          description: 'Console log statement',
+          code: 'console.log(${1:value});'
+        },
+        {
+          trigger: 'fn',
+          description: 'Function declaration',
+          code: 'function ${1:name}(${2:params}) {\n  ${3:// code here}\n}'
+        },
+        {
+          trigger: 'afn',
+          description: 'Arrow function',
+          code: 'const ${1:name} = (${2:params}) => {\n  ${3:// code here}\n}'
+        },
+        {
+          trigger: 'map',
+          description: 'Array map method',
+          code: 'array.map((${1:item}) => {\n  return ${2:item};\n});'
+        },
+        {
+          trigger: 'filter',
+          description: 'Array filter',
+          code: 'array.filter((${1:item}) => {\n  return ${2:condition};\n});'
+        },
+        {
+          trigger: 'reduce',
+          description: 'Array reduce',
+          code: 'array.reduce((${1:acc}, ${2:curr}) => {\n  return ${3:acc};\n}, ${4:initialValue});'
+        }
+      ],
+      python: [
+        {
+          trigger: 'def',
+          description: 'Function definition',
+          code: 'def ${1:function_name}(${2:params}):\n    ${3:pass}'
+        },
+        {
+          trigger: 'class',
+          description: 'Class definition',
+          code: 'class ${1:ClassName}:\n    def __init__(self${2:, params}):\n        ${3:pass}'
+        },
+        {
+          trigger: 'for',
+          description: 'For loop',
+          code: 'for ${1:i} in range(${2:n}):\n    ${3:# code here}'
+        },
+        {
+          trigger: 'while',
+          description: 'While loop',
+          code: 'while ${1:condition}:\n    ${2:# code here}'
+        },
+        {
+          trigger: 'if',
+          description: 'If statement',
+          code: 'if ${1:condition}:\n    ${2:# code here}\nelif ${3:condition}:\n    ${4:# code here}\nelse:\n    ${5:# code here}'
+        },
+        {
+          trigger: 'try',
+          description: 'Try-except block',
+          code: 'try:\n    ${1:# code here}\nexcept ${2:Exception} as ${3:e}:\n    ${4:# handle error}'
+        }
+      ],
+      cpp: [
+        {
+          trigger: 'cp',
+          description: 'Competitive programming template',
+          code: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(0);\n    cin.tie(0);\n    ${1:// code here}\n    return 0;\n}'
+        },
+        {
+          trigger: 'for',
+          description: 'For loop',
+          code: 'for(int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n    ${3:// code here}\n}'
+        },
+        {
+          trigger: 'vec',
+          description: 'Vector declaration',
+          code: 'vector<${1:int}> ${2:v};'
+        },
+        {
+          trigger: 'pb',
+          description: 'Push back to vector',
+          code: '${1:v}.push_back(${2:value});'
+        },
+        {
+          trigger: 'sort',
+          description: 'Sort vector',
+          code: 'sort(${1:v}.begin(), ${1:v}.end());'
+        },
+        {
+          trigger: 'binary',
+          description: 'Binary search',
+          code: 'bool binary_search(vector<int>& ${1:arr}, int ${2:target}) {\n    int left = 0, right = ${1:arr}.size() - 1;\n    while(left <= right) {\n        int mid = left + (right - left) / 2;\n        if(${1:arr}[mid] == ${2:target}) return true;\n        if(${1:arr}[mid] < ${2:target}) left = mid + 1;\n        else right = mid - 1;\n    }\n    return false;\n}'
+        }
+      ],
+      java: [
+        {
+          trigger: 'main',
+          description: 'Main method',
+          code: 'public static void main(String[] args) {\n    ${1:// code here}\n}'
+        },
+        {
+          trigger: 'sout',
+          description: 'Print to console',
+          code: 'System.out.println(${1:value});'
+        },
+        {
+          trigger: 'class',
+          description: 'Class definition',
+          code: 'public class ${1:ClassName} {\n    ${2:// code here}\n}'
+        }
+      ]
+    };
+
+    // Register snippets for each language
+    Object.entries(snippets).forEach(([language, languageSnippets]) => {
+      monaco.languages.registerCompletionItemProvider(language, {
+        provideCompletionItems: () => {
+          return {
+            suggestions: languageSnippets.map(snippet => ({
+              label: snippet.trigger,
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: snippet.code,
+              documentation: snippet.description,
+              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+            }))
+          };
+        },
+        triggerCharacters: ['.', ' ']
+      });
+    });
+  }, [monaco]);
+
   if (!isOpen) return null;
-
-  const snippets = {
-    javascript: [
-      {
-        trigger: 'cl',
-        description: 'Console log statement',
-        code: 'console.log(value);'
-      },
-      {
-        trigger: 'fn',
-        description: 'Function declaration',
-        code: `function name(params) {
-  // code here
-}`
-      },
-      {
-        trigger: 'afn',
-        description: 'Arrow function',
-        code: `const name = (params) => {
-  // code here
-}`
-      },
-      {
-        trigger: 'map',
-        description: 'Array map method',
-        code: `array.map((item) => {
-  return item;
-});`
-      },
-      {
-        trigger: 'filter',
-        description: 'Array filter',
-        code: `array.filter((item) => {
-  return condition;
-});`
-      },
-      {
-        trigger: 'reduce',
-        description: 'Array reduce',
-        code: `array.reduce((acc, curr) => {
-  return acc;
-}, initialValue);`
-      }
-    ],
-    python: [
-      {
-        trigger: 'def',
-        description: 'Function definition',
-        code: `def function_name(params):
-    pass`
-      },
-      {
-        trigger: 'class',
-        description: 'Class definition',
-        code: `class ClassName:
-    def __init__(self):
-        pass`
-      },
-      {
-        trigger: 'for',
-        description: 'For loop',
-        code: `for i in range(n):
-    # code here`
-      },
-      {
-        trigger: 'while',
-        description: 'While loop',
-        code: `while condition:
-    # code here`
-      },
-      {
-        trigger: 'if',
-        description: 'If statement',
-        code: `if condition:
-    # code here
-elif condition:
-    # code here
-else:
-    # code here`
-      },
-      {
-        trigger: 'try',
-        description: 'Try-except block',
-        code: `try:
-    # code here
-except Exception as e:
-    # handle error`
-      }
-    ],
-    cpp: [
-      {
-        trigger: 'cp',
-        description: 'Competitive programming template',
-        code: `#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    ios::sync_with_stdio(0);
-    cin.tie(0);
-    // code here
-    return 0;
-}`,
-      },
-      {
-        trigger: 'for',
-        description: 'For loop',
-        code: `for(int i = 0; i < n; i++) {
-    // code here
-}`
-      },
-      {
-        trigger: 'vec',
-        description: 'Vector declaration',
-        code: 'vector<int> v;'
-      },
-      {
-        trigger: 'pb',
-        description: 'Push back to vector',
-        code: 'v.push_back(value);'
-      },
-      {
-        trigger: 'sort',
-        description: 'Sort vector',
-        code: 'sort(v.begin(), v.end());'
-      },
-      {
-        trigger: 'binary',
-        description: 'Binary search',
-        code: `bool binary_search(vector<int>& arr, int target) {
-    int left = 0, right = arr.size() - 1;
-    while(left <= right) {
-        int mid = left + (right - left) / 2;
-        if(arr[mid] == target) return true;
-        if(arr[mid] < target) left = mid + 1;
-        else right = mid - 1;
-    }
-    return false;
-}`
-      }
-    ],
-    java: [
-      {
-        trigger: 'main',
-        description: 'Main method',
-        code: `public static void main(String[] args) {
-    // code here
-}`
-      },
-      {
-        trigger: 'sout',
-        description: 'Print to console',
-        code: 'System.out.println(value);'
-      },
-      {
-        trigger: 'class',
-        description: 'Class definition',
-        code: `public class ClassName {
-    // code here
-}`
-      }
-    ],
-    general: [
-      {
-        trigger: 'for + Space',
-        description: 'For loop template',
-        code: `for (let i = 0; i < length; i++) {
-    // code
-}`
-      },
-      {
-        trigger: 'array methods',
-        description: 'Common array methods',
-        code: '.map/filter/reduce/forEach/find/some/every'
-      },
-      {
-        trigger: 'dfs',
-        description: 'Depth First Search',
-        code: `void dfs(int node, vector<bool>& visited) {
-    visited[node] = true;
-    for(int next : graph[node]) {
-        if(!visited[next]) {
-            dfs(next, visited);
-        }
-    }
-}`
-      },
-      {
-        trigger: 'bfs',
-        description: 'Breadth First Search',
-        code: `void bfs(int start) {
-    queue<int> q;
-    vector<bool> visited(n, false);
-    q.push(start);
-    visited[start] = true;
-    
-    while(!q.empty()) {
-        int node = q.front();
-        q.pop();
-        for(int next : graph[node]) {
-            if(!visited[next]) {
-                visited[next] = true;
-                q.push(next);
-            }
-        }
-    }
-}`
-      }
-    ]
-  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">

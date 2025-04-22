@@ -672,8 +672,12 @@ const AppContent = () => {
                         automaticLayout: true,
                         padding: { top: 16, bottom: 16 },
                         suggestOnTriggerCharacters: true,
-                        quickSuggestions: true,
-                        snippetSuggestions: "inline",
+                        quickSuggestions: {
+                          other: true,
+                          comments: true,
+                          strings: true
+                        },
+                        snippetSuggestions: "top",
                         wordBasedSuggestions: true,
                         parameterHints: {
                           enabled: true
@@ -686,8 +690,38 @@ const AppContent = () => {
                           showVariables: true,
                           showWords: true,
                           showMethods: true,
+                          preview: true,
+                          showIcons: true,
+                          showStatusBar: true,
+                          showInlineDetails: true
                         },
-                        'editor.snippetSuggestions': 'top',
+                        tabCompletion: "on",
+                        acceptSuggestionOnEnter: "on",
+                        acceptSuggestionOnCommitCharacter: true,
+                        suggestSelection: "first",
+                        wordSeparators: "`~!@#$%^&*()=+[{]}\\|;:'\",.<>/?",
+                        autoClosingBrackets: "always",
+                        autoClosingQuotes: "always",
+                        autoSurround: "languageDefined",
+                        formatOnPaste: true,
+                        formatOnType: true,
+                        folding: true,
+                        foldingStrategy: "auto",
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        smoothScrolling: true,
+                        cursorSmoothCaretAnimation: "on",
+                        cursorBlinking: "smooth",
+                        renderWhitespace: "selection",
+                        renderLineHighlight: "all",
+                        renderValidationDecorations: "on",
+                        scrollbar: {
+                          vertical: "visible",
+                          horizontal: "visible",
+                          useShadows: false,
+                          verticalScrollbarSize: 10,
+                          horizontalScrollbarSize: 10
+                        }
                       }}
                     />
                   </div>
