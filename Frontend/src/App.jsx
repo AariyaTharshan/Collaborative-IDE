@@ -139,39 +139,81 @@ const AppContent = () => {
   };
 
   const analyzeComplexity = (code) => {
-    const patterns = {
-      time: {
-        'O(1)': /^[^{]*{[^}]*}$/,
-        'O(log n)': /while.*\/= 2|for.*\/= 2/,
-        'O(n)': /for.*\+\+|while.*\+\+/,
-        'O(n log n)': /sort\(|mergeSort|quickSort/,
-        'O(n²)': /for.*for|while.*while/,
-        'O(2ⁿ)': /fibonacci|permutations/
-      },
-      space: {
-        'O(1)': /^[^{]*{(?![^}]*(?:vector|array|list|map|set))[^}]*}$/,
-        'O(n)': /vector|array|list|map|set/,
-        'O(n²)': /vector.*vector|array.*array/
-      }
+    // Helper function to count indentation level
+    const getIndentationLevel = (line) => {
+      const match = line.match(/^[ \t]*/);
+      return match ? match[0].length : 0;
     };
 
-    let timeComplexity = 'O(1)';
-    let spaceComplexity = 'O(1)';
+    // Split code into lines for better analysis
+    const lines = code.split('\n');
+    
+    let maxLoopNesting = 0;
+    let currentNesting = 0;
+    let hasRecursion = false;
+    let hasDataStructures = false;
+    let hasSorting = false;
+    let hasExponentialOps = false;
 
-    // Check time complexity
-    for (const [complexity, pattern] of Object.entries(patterns.time)) {
-      if (pattern.test(code)) {
-        timeComplexity = complexity;
-        break;
+    // Analyze each line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim().toLowerCase();
+      const currentIndentation = getIndentationLevel(lines[i]);
+      
+      // Check for loops
+      if (line.match(/\bfor\b|\bwhile\b/)) {
+        // If we're at the same or lower indentation, reset nesting count
+        if (i > 0 && currentIndentation <= getIndentationLevel(lines[i-1])) {
+          currentNesting = 1;
+        } else {
+          currentNesting++;
+        }
+        maxLoopNesting = Math.max(maxLoopNesting, currentNesting);
+      }
+
+      // Check for recursion
+      if (line.match(/\bdef\b.*\(.*\).*:/) && code.includes(line.match(/\bdef\b\s+(\w+)/)[1])) {
+        hasRecursion = true;
+      }
+
+      // Check for data structures
+      if (line.match(/list|dict|set|array|vector|map|queue|stack|heap|tree/)) {
+        hasDataStructures = true;
+      }
+
+      // Check for sorting
+      if (line.match(/\.sort|sorted|sort\(|mergesort|quicksort|heapsort/)) {
+        hasSorting = true;
+      }
+
+      // Check for exponential operations
+      if (line.match(/combinations|permutations|power\s*set|factorial/)) {
+        hasExponentialOps = true;
       }
     }
 
-    // Check space complexity
-    for (const [complexity, pattern] of Object.entries(patterns.space)) {
-      if (pattern.test(code)) {
-        spaceComplexity = complexity;
-        break;
-      }
+    // Determine time complexity
+    let timeComplexity = 'O(1)';
+    if (hasExponentialOps) {
+      timeComplexity = 'O(2ⁿ)';
+    } else if (maxLoopNesting >= 2) {
+      timeComplexity = 'O(n²)';
+    } else if (hasSorting) {
+      timeComplexity = 'O(n log n)';
+    } else if (maxLoopNesting === 1) {
+      timeComplexity = 'O(n)';
+    } else if (hasRecursion || line.match(/binary.*search|log/)) {
+      timeComplexity = 'O(log n)';
+    }
+
+    // Determine space complexity
+    let spaceComplexity = 'O(1)';
+    if (maxLoopNesting >= 2 && hasDataStructures) {
+      spaceComplexity = 'O(n²)';
+    } else if (hasDataStructures || maxLoopNesting >= 1) {
+      spaceComplexity = 'O(n)';
+    } else if (hasRecursion) {
+      spaceComplexity = 'O(log n)';
     }
 
     setComplexity({ time: timeComplexity, space: spaceComplexity });
@@ -483,29 +525,33 @@ const AppContent = () => {
                 <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
                   Room Participants ({participants.length})
                 </h3>
-                <ul className="space-y-1">
-                  {participants.map((name, index) => (
-                    <li key={index} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                      {name}
-                    </li>
-                  ))}
-                </ul>
+                <div className="max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                  <ul className="space-y-1">
+                    {participants.map((name, index) => (
+                      <li key={index} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
 
               <div>
                 <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
                   Voice Participants ({voiceParticipants.size})
                 </h3>
-                <ul className="space-y-1">
-                  {Array.from(voiceParticipants.entries()).map(([userId, name]) => (
-                    <li key={userId} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                      <span className="w-2 h-2 rounded-full bg-[#FFA116]"></span>
-                      {name}
-                      {userId === socket.id && " (You)"}
-                    </li>
-                  ))}
-                </ul>
+                <div className="max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                  <ul className="space-y-1">
+                    {Array.from(voiceParticipants.entries()).map(([userId, name]) => (
+                      <li key={userId} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <span className="w-2 h-2 rounded-full bg-[#FFA116]"></span>
+                        {name}
+                        {userId === socket.id && " (You)"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
 
@@ -607,6 +653,16 @@ const AppContent = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
+                    <div className="flex gap-2">
+                      <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center gap-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Time:</span>
+                        <span className="font-mono text-sm text-[#FFA116]">{complexity.time}</span>
+                      </div>
+                      <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center gap-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Space:</span>
+                        <span className="font-mono text-sm text-[#FFA116]">{complexity.space}</span>
+                      </div>
+                    </div>
                     <button
                       onClick={() => setIsHelpOpen(true)}
                       className="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
@@ -729,7 +785,7 @@ const AppContent = () => {
                   {/* Output Section */}
                   <div className="h-[30%] bg-white dark:bg-[#282828] rounded-lg shadow-sm p-4">
                     <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
-                    <div className="flex flex-col h-[calc(100%-2rem)] gap-3">
+                    <div className="flex flex-col h-[calc(100%-2.5rem)] gap-3">
                       <div className="flex-1">
                         <textarea
                           value={programInput}
@@ -738,23 +794,11 @@ const AppContent = () => {
                           className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
                         />
                       </div>
-                      <div className="flex-1">
-                        <pre className="h-full p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm">
+                      <div className="flex-1 relative">
+                        <pre className="absolute inset-0 p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 whitespace-pre-wrap">
                           {output}
                         </pre>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Complexity Analysis */}
-                  <div className="flex gap-4 mb-4">
-                    <div className="px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Time: </span>
-                      <span className="font-mono">{complexity.time}</span>
-                    </div>
-                    <div className="px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Space: </span>
-                      <span className="font-mono">{complexity.space}</span>
                     </div>
                   </div>
                 </div>
