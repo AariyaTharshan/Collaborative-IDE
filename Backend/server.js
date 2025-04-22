@@ -573,29 +573,26 @@ io.on('connection', (socket) => {
     socket.emit('pong');
   });
 
-  socket.on('whiteboard-draw', ({ roomId, path }) => {
+  socket.on('whiteboard-draw', ({ roomId, canvasState }) => {
     const room = rooms.get(roomId);
     if (room) {
-      if (!room.whiteboardObjects) {
-        room.whiteboardObjects = [];
-      }
-      room.whiteboardObjects.push(path);
-      socket.to(roomId).emit('whiteboard-draw', { path });
+      room.whiteboardState = canvasState;
+      socket.to(roomId).emit('whiteboard-draw', { canvasState });
     }
   });
 
   socket.on('whiteboard-clear', ({ roomId }) => {
     const room = rooms.get(roomId);
     if (room) {
-      room.whiteboardObjects = [];
+      room.whiteboardState = null;
       socket.to(roomId).emit('whiteboard-clear');
     }
   });
 
   socket.on('get-whiteboard-state', ({ roomId }) => {
     const room = rooms.get(roomId);
-    if (room && room.whiteboardObjects) {
-      socket.emit('whiteboard-state', { objects: room.whiteboardObjects });
+    if (room && room.whiteboardState) {
+      socket.emit('whiteboard-state', { canvasState: room.whiteboardState });
     }
   });
 });
