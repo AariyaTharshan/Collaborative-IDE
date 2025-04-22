@@ -1,130 +1,131 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMonaco } from '@monaco-editor/react';
+
+const SNIPPETS = {
+  javascript: [
+    {
+      trigger: 'cl',
+      description: 'Console log statement',
+      code: 'console.log(${1:value});'
+    },
+    {
+      trigger: 'fn',
+      description: 'Function declaration',
+      code: 'function ${1:name}(${2:params}) {\n  ${3:// code here}\n}'
+    },
+    {
+      trigger: 'afn',
+      description: 'Arrow function',
+      code: 'const ${1:name} = (${2:params}) => {\n  ${3:// code here}\n}'
+    },
+    {
+      trigger: 'map',
+      description: 'Array map method',
+      code: 'array.map((${1:item}) => {\n  return ${2:item};\n});'
+    },
+    {
+      trigger: 'filter',
+      description: 'Array filter',
+      code: 'array.filter((${1:item}) => {\n  return ${2:condition};\n});'
+    },
+    {
+      trigger: 'reduce',
+      description: 'Array reduce',
+      code: 'array.reduce((${1:acc}, ${2:curr}) => {\n  return ${3:acc};\n}, ${4:initialValue});'
+    }
+  ],
+  python: [
+    {
+      trigger: 'def',
+      description: 'Function definition',
+      code: 'def ${1:function_name}(${2:params}):\n    ${3:pass}'
+    },
+    {
+      trigger: 'class',
+      description: 'Class definition',
+      code: 'class ${1:ClassName}:\n    def __init__(self${2:, params}):\n        ${3:pass}'
+    },
+    {
+      trigger: 'for',
+      description: 'For loop',
+      code: 'for ${1:i} in range(${2:n}):\n    ${3:# code here}'
+    },
+    {
+      trigger: 'while',
+      description: 'While loop',
+      code: 'while ${1:condition}:\n    ${2:# code here}'
+    },
+    {
+      trigger: 'if',
+      description: 'If statement',
+      code: 'if ${1:condition}:\n    ${2:# code here}\nelif ${3:condition}:\n    ${4:# code here}\nelse:\n    ${5:# code here}'
+    },
+    {
+      trigger: 'try',
+      description: 'Try-except block',
+      code: 'try:\n    ${1:# code here}\nexcept ${2:Exception} as ${3:e}:\n    ${4:# handle error}'
+    }
+  ],
+  cpp: [
+    {
+      trigger: 'cp',
+      description: 'Competitive programming template',
+      code: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(0);\n    cin.tie(0);\n    ${1:// code here}\n    return 0;\n}'
+    },
+    {
+      trigger: 'for',
+      description: 'For loop',
+      code: 'for(int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n    ${3:// code here}\n}'
+    },
+    {
+      trigger: 'vec',
+      description: 'Vector declaration',
+      code: 'vector<${1:int}> ${2:v};'
+    },
+    {
+      trigger: 'pb',
+      description: 'Push back to vector',
+      code: '${1:v}.push_back(${2:value});'
+    },
+    {
+      trigger: 'sort',
+      description: 'Sort vector',
+      code: 'sort(${1:v}.begin(), ${1:v}.end());'
+    },
+    {
+      trigger: 'binary',
+      description: 'Binary search',
+      code: 'bool binary_search(vector<int>& ${1:arr}, int ${2:target}) {\n    int left = 0, right = ${1:arr}.size() - 1;\n    while(left <= right) {\n        int mid = left + (right - left) / 2;\n        if(${1:arr}[mid] == ${2:target}) return true;\n        if(${1:arr}[mid] < ${2:target}) left = mid + 1;\n        else right = mid - 1;\n    }\n    return false;\n}'
+    }
+  ],
+  java: [
+    {
+      trigger: 'main',
+      description: 'Main method',
+      code: 'public static void main(String[] args) {\n    ${1:// code here}\n}'
+    },
+    {
+      trigger: 'sout',
+      description: 'Print to console',
+      code: 'System.out.println(${1:value});'
+    },
+    {
+      trigger: 'class',
+      description: 'Class definition',
+      code: 'public class ${1:ClassName} {\n    ${2:// code here}\n}'
+    }
+  ]
+};
 
 const HelpPage = ({ isOpen, onClose }) => {
   const monaco = useMonaco();
+  const [registeredSnippets, setRegisteredSnippets] = useState(false);
 
   useEffect(() => {
-    if (!monaco) return;
-
-    const snippets = {
-      javascript: [
-        {
-          trigger: 'cl',
-          description: 'Console log statement',
-          code: 'console.log(${1:value});'
-        },
-        {
-          trigger: 'fn',
-          description: 'Function declaration',
-          code: 'function ${1:name}(${2:params}) {\n  ${3:// code here}\n}'
-        },
-        {
-          trigger: 'afn',
-          description: 'Arrow function',
-          code: 'const ${1:name} = (${2:params}) => {\n  ${3:// code here}\n}'
-        },
-        {
-          trigger: 'map',
-          description: 'Array map method',
-          code: 'array.map((${1:item}) => {\n  return ${2:item};\n});'
-        },
-        {
-          trigger: 'filter',
-          description: 'Array filter',
-          code: 'array.filter((${1:item}) => {\n  return ${2:condition};\n});'
-        },
-        {
-          trigger: 'reduce',
-          description: 'Array reduce',
-          code: 'array.reduce((${1:acc}, ${2:curr}) => {\n  return ${3:acc};\n}, ${4:initialValue});'
-        }
-      ],
-      python: [
-        {
-          trigger: 'def',
-          description: 'Function definition',
-          code: 'def ${1:function_name}(${2:params}):\n    ${3:pass}'
-        },
-        {
-          trigger: 'class',
-          description: 'Class definition',
-          code: 'class ${1:ClassName}:\n    def __init__(self${2:, params}):\n        ${3:pass}'
-        },
-        {
-          trigger: 'for',
-          description: 'For loop',
-          code: 'for ${1:i} in range(${2:n}):\n    ${3:# code here}'
-        },
-        {
-          trigger: 'while',
-          description: 'While loop',
-          code: 'while ${1:condition}:\n    ${2:# code here}'
-        },
-        {
-          trigger: 'if',
-          description: 'If statement',
-          code: 'if ${1:condition}:\n    ${2:# code here}\nelif ${3:condition}:\n    ${4:# code here}\nelse:\n    ${5:# code here}'
-        },
-        {
-          trigger: 'try',
-          description: 'Try-except block',
-          code: 'try:\n    ${1:# code here}\nexcept ${2:Exception} as ${3:e}:\n    ${4:# handle error}'
-        }
-      ],
-      cpp: [
-        {
-          trigger: 'cp',
-          description: 'Competitive programming template',
-          code: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(0);\n    cin.tie(0);\n    ${1:// code here}\n    return 0;\n}'
-        },
-        {
-          trigger: 'for',
-          description: 'For loop',
-          code: 'for(int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n    ${3:// code here}\n}'
-        },
-        {
-          trigger: 'vec',
-          description: 'Vector declaration',
-          code: 'vector<${1:int}> ${2:v};'
-        },
-        {
-          trigger: 'pb',
-          description: 'Push back to vector',
-          code: '${1:v}.push_back(${2:value});'
-        },
-        {
-          trigger: 'sort',
-          description: 'Sort vector',
-          code: 'sort(${1:v}.begin(), ${1:v}.end());'
-        },
-        {
-          trigger: 'binary',
-          description: 'Binary search',
-          code: 'bool binary_search(vector<int>& ${1:arr}, int ${2:target}) {\n    int left = 0, right = ${1:arr}.size() - 1;\n    while(left <= right) {\n        int mid = left + (right - left) / 2;\n        if(${1:arr}[mid] == ${2:target}) return true;\n        if(${1:arr}[mid] < ${2:target}) left = mid + 1;\n        else right = mid - 1;\n    }\n    return false;\n}'
-        }
-      ],
-      java: [
-        {
-          trigger: 'main',
-          description: 'Main method',
-          code: 'public static void main(String[] args) {\n    ${1:// code here}\n}'
-        },
-        {
-          trigger: 'sout',
-          description: 'Print to console',
-          code: 'System.out.println(${1:value});'
-        },
-        {
-          trigger: 'class',
-          description: 'Class definition',
-          code: 'public class ${1:ClassName} {\n    ${2:// code here}\n}'
-        }
-      ]
-    };
+    if (!monaco || registeredSnippets) return;
 
     // Register snippets for each language
-    Object.entries(snippets).forEach(([language, languageSnippets]) => {
+    Object.entries(SNIPPETS).forEach(([language, languageSnippets]) => {
       monaco.languages.registerCompletionItemProvider(language, {
         provideCompletionItems: () => {
           return {
@@ -140,7 +141,9 @@ const HelpPage = ({ isOpen, onClose }) => {
         triggerCharacters: ['.', ' ']
       });
     });
-  }, [monaco]);
+
+    setRegisteredSnippets(true);
+  }, [monaco, registeredSnippets]);
 
   if (!isOpen) return null;
 
@@ -163,7 +166,7 @@ const HelpPage = ({ isOpen, onClose }) => {
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-4rem)]">
           <div className="space-y-8">
-            {Object.entries(snippets).map(([language, languageSnippets]) => (
+            {Object.entries(SNIPPETS).map(([language, languageSnippets]) => (
               <div key={language} className="space-y-4">
                 <h3 className="text-xl font-semibold text-[#FFA116] capitalize">
                   {language} Snippets

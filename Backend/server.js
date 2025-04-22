@@ -352,7 +352,8 @@ io.on('connection', (socket) => {
         language,
         participants: new Map(),
         code: '// Start coding here...',
-        host: socket.id
+        host: socket.id,
+        whiteboardObjects: []
       });
     }
 
@@ -570,6 +571,32 @@ io.on('connection', (socket) => {
   // Add ping/pong for connection health check
   socket.on('ping', () => {
     socket.emit('pong');
+  });
+
+  socket.on('whiteboard-draw', ({ roomId, path }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      if (!room.whiteboardObjects) {
+        room.whiteboardObjects = [];
+      }
+      room.whiteboardObjects.push(path);
+      socket.to(roomId).emit('whiteboard-draw', { path });
+    }
+  });
+
+  socket.on('whiteboard-clear', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.whiteboardObjects = [];
+      socket.to(roomId).emit('whiteboard-clear');
+    }
+  });
+
+  socket.on('get-whiteboard-state', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.whiteboardObjects) {
+      socket.emit('whiteboard-state', { objects: room.whiteboardObjects });
+    }
   });
 });
 

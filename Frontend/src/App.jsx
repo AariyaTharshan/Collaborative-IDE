@@ -8,6 +8,7 @@ import { useTheme } from './context/ThemeContext';
 import HelpPage from './components/HelpPage';
 import { SocketProvider, useSocket } from './context/SocketContext';
 import Problems from './components/Problems';
+import Whiteboard from './components/Whiteboard';
 
 const AppContent = () => {
   const socket = useSocket();
@@ -33,6 +34,7 @@ const AppContent = () => {
   const { isDark } = useTheme();
   const [complexity, setComplexity] = useState({ time: 'O(1)', space: 'O(1)' });
   const [isProblemsPanelOpen, setIsProblemsPanelOpen] = useState(false);
+  const [isWhiteboardMode, setIsWhiteboardMode] = useState(false);
 
   useEffect(() => {
     if (!isInRoom) return;
@@ -628,14 +630,16 @@ const AppContent = () => {
             </div>
           </div>
 
-          {/* Right Panel - Editor */}
+          {/* Right Panel - Editor/Whiteboard */}
           <div className="w-full lg:w-[75%] h-[70vh] lg:h-full flex flex-col">
             <div className="flex-1 bg-white dark:bg-[#282828] rounded-lg shadow-sm mb-4 overflow-hidden">
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">Code Editor</h2>
-                    {isHost ? (
+                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                      {isWhiteboardMode ? 'Whiteboard' : 'Code Editor'}
+                    </h2>
+                    {!isWhiteboardMode && isHost && (
                       <select 
                         value={language}
                         onChange={(e) => handleLanguageChange(e.target.value)}
@@ -646,7 +650,8 @@ const AppContent = () => {
                         <option value="cpp">C++</option>
                         <option value="java">Java</option>
                       </select>
-                    ) : (
+                    )}
+                    {!isWhiteboardMode && !isHost && (
                       <span className="text-gray-600 dark:text-gray-300">
                         Language: {language}
                       </span>
@@ -664,143 +669,177 @@ const AppContent = () => {
                       </div>
                     </div>
                     <button
-                      onClick={() => setIsHelpOpen(true)}
+                      onClick={() => setIsWhiteboardMode(!isWhiteboardMode)}
                       className="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Snippets</span>
+                      {isWhiteboardMode ? (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                          </svg>
+                          <span>Editor</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                          <span>Whiteboard</span>
+                        </>
+                      )}
                     </button>
-                    <button 
-                      onClick={handleCompile}
-                      className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
-                    >
-                      Run Code
-                    </button>
+                    {!isWhiteboardMode && (
+                      <>
+                        <button
+                          onClick={() => setIsHelpOpen(true)}
+                          className="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>Snippets</span>
+                        </button>
+                        <button 
+                          onClick={handleCompile}
+                          className="px-4 py-2 bg-[#FFA116] text-white rounded-md hover:bg-[#FF9100] transition-colors"
+                        >
+                          Run Code
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
               <div className="h-[calc(100%-4rem)]">
                 <div className="flex flex-col h-full">
-                  {/* Problems Panel Toggle Button - Now on right */}
-                  <button
-                    onClick={() => setIsProblemsPanelOpen(!isProblemsPanelOpen)}
-                    className="fixed right-4 top-20 z-10 px-4 py-2 bg-[#FFA116] text-white rounded-lg hover:bg-[#FF9100] transition-colors flex items-center gap-2"
-                  >
-                    <span>Problems</span>
-                    <svg 
-                      className={`w-5 h-5 transition-transform ${isProblemsPanelOpen ? 'rotate-180' : ''}`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
+                  {/* Problems Panel Toggle Button */}
+                  {!isWhiteboardMode && (
+                    <button
+                      onClick={() => setIsProblemsPanelOpen(!isProblemsPanelOpen)}
+                      className="fixed right-4 top-20 z-10 px-4 py-2 bg-[#FFA116] text-white rounded-lg hover:bg-[#FF9100] transition-colors flex items-center gap-2"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
+                      <span>Problems</span>
+                      <svg 
+                        className={`w-5 h-5 transition-transform ${isProblemsPanelOpen ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                  )}
 
-                  {/* Problems Panel - Now slides from right */}
-                  <div className={`fixed right-0 top-0 h-full bg-white dark:bg-[#282828] shadow-lg transition-transform duration-300 transform z-20 ${
-                    isProblemsPanelOpen ? 'translate-x-0' : 'translate-x-full'
-                  }`} style={{ width: '400px', marginTop: '64px' }}>
-                    <div className="h-full overflow-y-auto">
-                      <Problems 
-                        onSelectProblem={(problem) => {
-                          setCode(problem.template);
-                          setIsProblemsPanelOpen(false);
-                        }}
-                        onClose={() => setIsProblemsPanelOpen(false)}
-                      />
+                  {/* Problems Panel */}
+                  {!isWhiteboardMode && (
+                    <div className={`fixed right-0 top-0 h-full bg-white dark:bg-[#282828] shadow-lg transition-transform duration-300 transform z-20 ${
+                      isProblemsPanelOpen ? 'translate-x-0' : 'translate-x-full'
+                    }`} style={{ width: '400px', marginTop: '64px' }}>
+                      <div className="h-full overflow-y-auto">
+                        <Problems 
+                          onSelectProblem={(problem) => {
+                            setCode(problem.template);
+                            setIsProblemsPanelOpen(false);
+                          }}
+                          onClose={() => setIsProblemsPanelOpen(false)}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Main Editor */}
+                  {/* Main Content */}
                   <div className="flex-1">
-                    <Editor
-                      height="100%"
-                      language={language}
-                      value={code}
-                      onChange={handleCodeChange}
-                      theme={isDark ? "vs-dark" : "light"}
-                      options={{
-                        fontSize: 14,
-                        minimap: { enabled: false },
-                        automaticLayout: true,
-                        padding: { top: 16, bottom: 16 },
-                        suggestOnTriggerCharacters: true,
-                        quickSuggestions: {
-                          other: true,
-                          comments: true,
-                          strings: true
-                        },
-                        snippetSuggestions: "top",
-                        wordBasedSuggestions: true,
-                        parameterHints: {
-                          enabled: true
-                        },
-                        suggest: {
-                          showKeywords: true,
-                          showSnippets: true,
-                          showClasses: true,
-                          showFunctions: true,
-                          showVariables: true,
-                          showWords: true,
-                          showMethods: true,
-                          preview: true,
-                          showIcons: true,
-                          showStatusBar: true,
-                          showInlineDetails: true
-                        },
-                        tabCompletion: "on",
-                        acceptSuggestionOnEnter: "on",
-                        acceptSuggestionOnCommitCharacter: true,
-                        suggestSelection: "first",
-                        wordSeparators: "`~!@#$%^&*()=+[{]}\\|;:'\",.<>/?",
-                        autoClosingBrackets: "always",
-                        autoClosingQuotes: "always",
-                        autoSurround: "languageDefined",
-                        formatOnPaste: true,
-                        formatOnType: true,
-                        folding: true,
-                        foldingStrategy: "auto",
-                        lineNumbers: "on",
-                        scrollBeyondLastLine: false,
-                        smoothScrolling: true,
-                        cursorSmoothCaretAnimation: "on",
-                        cursorBlinking: "smooth",
-                        renderWhitespace: "selection",
-                        renderLineHighlight: "all",
-                        renderValidationDecorations: "on",
-                        scrollbar: {
-                          vertical: "visible",
-                          horizontal: "visible",
-                          useShadows: false,
-                          verticalScrollbarSize: 10,
-                          horizontalScrollbarSize: 10
-                        }
-                      }}
-                    />
+                    {isWhiteboardMode ? (
+                      <Whiteboard roomId={roomId} />
+                    ) : (
+                      <Editor
+                        height="100%"
+                        language={language}
+                        value={code}
+                        onChange={handleCodeChange}
+                        theme={isDark ? "vs-dark" : "light"}
+                        options={{
+                          fontSize: 14,
+                          minimap: { enabled: false },
+                          automaticLayout: true,
+                          padding: { top: 16, bottom: 16 },
+                          suggestOnTriggerCharacters: true,
+                          quickSuggestions: {
+                            other: true,
+                            comments: true,
+                            strings: true
+                          },
+                          snippetSuggestions: "top",
+                          wordBasedSuggestions: true,
+                          parameterHints: {
+                            enabled: true
+                          },
+                          suggest: {
+                            showKeywords: true,
+                            showSnippets: true,
+                            showClasses: true,
+                            showFunctions: true,
+                            showVariables: true,
+                            showWords: true,
+                            showMethods: true,
+                            preview: true,
+                            showIcons: true,
+                            showStatusBar: true,
+                            showInlineDetails: true
+                          },
+                          tabCompletion: "on",
+                          acceptSuggestionOnEnter: "on",
+                          acceptSuggestionOnCommitCharacter: true,
+                          suggestSelection: "first",
+                          wordSeparators: "`~!@#$%^&*()=+[{]}\\|;:'\",.<>/?",
+                          autoClosingBrackets: "always",
+                          autoClosingQuotes: "always",
+                          autoSurround: "languageDefined",
+                          formatOnPaste: true,
+                          formatOnType: true,
+                          folding: true,
+                          foldingStrategy: "auto",
+                          lineNumbers: "on",
+                          scrollBeyondLastLine: false,
+                          smoothScrolling: true,
+                          cursorSmoothCaretAnimation: "on",
+                          cursorBlinking: "smooth",
+                          renderWhitespace: "selection",
+                          renderLineHighlight: "all",
+                          renderValidationDecorations: "on",
+                          scrollbar: {
+                            vertical: "visible",
+                            horizontal: "visible",
+                            useShadows: false,
+                            verticalScrollbarSize: 10,
+                            horizontalScrollbarSize: 10
+                          }
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Output Section */}
-                  <div className="h-[30%] bg-white dark:bg-[#282828] rounded-lg shadow-sm p-4">
-                    <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
-                    <div className="flex flex-col h-[calc(100%-2.5rem)] gap-3">
-                      <div className="flex-1">
-                        <textarea
-                          value={programInput}
-                          onChange={(e) => setProgramInput(e.target.value)}
-                          placeholder="Program input (one per line)..."
-                          className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
-                        />
-                      </div>
-                      <div className="flex-1 relative">
-                        <pre className="absolute inset-0 p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 whitespace-pre-wrap">
-                          {output}
-                        </pre>
+                  {!isWhiteboardMode && (
+                    <div className="h-[30%] bg-white dark:bg-[#282828] rounded-lg shadow-sm p-4">
+                      <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Output</h2>
+                      <div className="flex flex-col h-[calc(100%-2.5rem)] gap-3">
+                        <div className="flex-1">
+                          <textarea
+                            value={programInput}
+                            onChange={(e) => setProgramInput(e.target.value)}
+                            placeholder="Program input (one per line)..."
+                            className="w-full h-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FFA116] resize-none"
+                          />
+                        </div>
+                        <div className="flex-1 relative">
+                          <pre className="absolute inset-0 p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-auto text-gray-900 dark:text-white font-mono text-sm scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 whitespace-pre-wrap">
+                            {output}
+                          </pre>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -811,7 +850,7 @@ const AppContent = () => {
       {/* Help Page Component */}
       <HelpPage isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
-      {/* Theme Toggle - Positioned at bottom right */}
+      {/* Theme Toggle */}
       <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6 lg:bottom-8 lg:right-8">
         <ThemeToggle />
       </div>
