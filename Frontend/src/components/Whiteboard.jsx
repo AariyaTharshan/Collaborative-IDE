@@ -37,7 +37,6 @@ const Whiteboard = ({ roomId }) => {
 
     // Initialize canvas with current dimensions
     fabricRef.current = new fabric.Canvas(canvasRef.current, {
-      isDrawingMode: true,
       width: dimensions.width,
       height: dimensions.height,
       backgroundColor: '#ffffff',
@@ -48,14 +47,6 @@ const Whiteboard = ({ roomId }) => {
 
     const canvas = fabricRef.current;
 
-    // Set up drawing brush with better visibility
-    if (canvas.freeDrawingBrush) {
-      canvas.freeDrawingBrush.width = 3;
-      canvas.freeDrawingBrush.color = '#000000';
-      canvas.freeDrawingBrush.strokeLineCap = 'round';
-      canvas.freeDrawingBrush.strokeLineJoin = 'round';
-    }
-
     // Debounce function to prevent too frequent updates
     let timeoutId = null;
     const emitCanvasState = () => {
@@ -64,44 +55,46 @@ const Whiteboard = ({ roomId }) => {
         if (socket && roomId) {
           const canvasState = JSON.stringify(canvas.toJSON([
             'selectable', 'hasControls', 'radius', 'startAngle', 'endAngle',
-            'strokeUniform', 'strokeWidth', 'strokeLineCap', 'strokeLineJoin'
+            'strokeUniform', 'strokeWidth', 'strokeLineCap', 'strokeLineJoin',
+            'objectType', 'text', 'fontSize', 'fill', 'stroke'
           ]));
           socket.emit('whiteboard-draw', {
             roomId,
             canvasState
           });
         }
-      }, 100);
+      }, 50); // Reduced debounce time for faster sync
     };
 
     // Handle all object modifications
     canvas.on('object:modified', emitCanvasState);
-    canvas.on('path:created', emitCanvasState);
     canvas.on('object:added', emitCanvasState);
+    canvas.on('object:removed', emitCanvasState);
 
     if (socket) {
       // Handle incoming drawing updates
       socket.on('whiteboard-draw', ({ canvasState }) => {
-        try {
-          const parsedState = JSON.parse(canvasState);
-          canvas.loadFromJSON(parsedState, () => {
-            canvas.requestRenderAll();
-            // Ensure all objects maintain their properties
-            canvas.getObjects().forEach(obj => {
-              obj.setCoords();
-              obj.selectable = true;
-              obj.hasControls = true;
+        if (canvasState) {
+          try {
+            const parsedState = JSON.parse(canvasState);
+            canvas.loadFromJSON(parsedState, () => {
+              canvas.getObjects().forEach(obj => {
+                obj.setCoords();
+                obj.selectable = true;
+                obj.hasControls = true;
+              });
+              canvas.requestRenderAll();
             });
-          });
-        } catch (error) {
-          console.error('Error loading canvas state:', error);
+          } catch (error) {
+            console.error('Error loading canvas state:', error);
+          }
         }
       });
 
       // Handle clear board
       socket.on('whiteboard-clear', () => {
         canvas.clear();
-        canvas.setBackgroundColor('#ffffff', canvas.renderAll.bind(canvas));
+        canvas.setBackgroundColor('#ffffff', canvas.requestRenderAll.bind(canvas));
       });
 
       // Request initial state
@@ -113,13 +106,12 @@ const Whiteboard = ({ roomId }) => {
           try {
             const parsedState = JSON.parse(canvasState);
             canvas.loadFromJSON(parsedState, () => {
-              canvas.requestRenderAll();
-              // Ensure all objects maintain their properties
               canvas.getObjects().forEach(obj => {
                 obj.setCoords();
                 obj.selectable = true;
                 obj.hasControls = true;
               });
+              canvas.requestRenderAll();
             });
           } catch (error) {
             console.error('Error loading initial canvas state:', error);
@@ -132,12 +124,13 @@ const Whiteboard = ({ roomId }) => {
       width: dimensions.width,
       height: dimensions.height
     });
-    canvas.renderAll();
+    canvas.requestRenderAll();
 
     return () => {
+      if (timeoutId) clearTimeout(timeoutId);
       canvas.off('object:modified', emitCanvasState);
-      canvas.off('path:created', emitCanvasState);
       canvas.off('object:added', emitCanvasState);
+      canvas.off('object:removed', emitCanvasState);
       if (socket) {
         socket.off('whiteboard-draw');
         socket.off('whiteboard-clear');
