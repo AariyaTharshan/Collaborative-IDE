@@ -84,6 +84,66 @@ struct DSU {
     }
 };`
   },
+  c: {
+    basic: `#include <stdio.h>
+
+int main() {
+    // Your code here
+    printf("Hello, World!\\n");
+    return 0;
+}`,
+    algorithms: `// Example: Bubble Sort in C
+#include <stdio.h>
+
+void bubbleSort(int arr[], int n) {
+    for (int i = 0; i < n-1; i++) {
+        for (int j = 0; j < n-i-1; j++) {
+            if (arr[j] > arr[j+1]) {
+                int temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+        }
+    }
+}`,
+    linkedList: `// Singly Linked List in C
+#include <stdio.h>
+#include <stdlib.h>
+
+struct Node {
+    int data;
+    struct Node* next;
+};
+
+struct Node* createNode(int data) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = data;
+    newNode->next = NULL;
+    return newNode;
+}
+
+void printList(struct Node* head) {
+    while (head != NULL) {
+        printf("%d ", head->data);
+        head = head->next;
+    }
+    printf("\n");
+}`,
+    fileIO: `// File I/O in C
+#include <stdio.h>
+
+int main() {
+    FILE *fptr;
+    fptr = fopen("test.txt", "w");
+    if (fptr == NULL) {
+        printf("Error opening file!\n");
+        return 1;
+    }
+    fprintf(fptr, "Hello, file!\n");
+    fclose(fptr);
+    return 0;
+}`
+  },
   python: {
     basic: `from collections import defaultdict, Counter, deque
 from heapq import heappush, heappop
@@ -127,7 +187,8 @@ app.post('/compile', async (req, res) => {
     'cpp': 54,
     'java': 62,
     'python': 71,
-    'javascript': 63
+    'javascript': 63,
+    'c': 50
   };
 
   try {
@@ -227,6 +288,58 @@ const problemSuggestions = {
       ]
     }
     // Add more problems...
+  ],
+  striver: [
+    {
+      title: "Set Matrix Zeroes",
+      difficulty: "Medium",
+      category: "Arrays",
+      description: "Given an m x n integer matrix, if an element is 0, set its entire row and column to 0.",
+      template: "void setZeroes(vector<vector<int>>& matrix) {\n    // Your code here\n}",
+      testCases: [
+        { input: "[[1,1,1],[1,0,1],[1,1,1]]", output: "[[1,0,1],[0,0,0],[1,0,1]]" }
+      ]
+    },
+    {
+      title: "Pascal's Triangle",
+      difficulty: "Easy",
+      category: "Arrays",
+      description: "Given an integer numRows, return the first numRows of Pascal's triangle.",
+      template: "vector<vector<int>> generate(int numRows) {\n    // Your code here\n}",
+      testCases: [
+        { input: "5", output: "[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1]]" }
+      ]
+    },
+    {
+      title: "Next Permutation",
+      difficulty: "Medium",
+      category: "Arrays",
+      description: "Implement next permutation, which rearranges numbers into the lexicographically next greater permutation of numbers.",
+      template: "void nextPermutation(vector<int>& nums) {\n    // Your code here\n}",
+      testCases: [
+        { input: "[1,2,3]", output: "[1,3,2]" }
+      ]
+    },
+    {
+      title: "Sort Colors",
+      difficulty: "Medium",
+      category: "Arrays",
+      description: "Given an array with n objects colored red, white, or blue, sort them in-place.",
+      template: "void sortColors(vector<int>& nums) {\n    // Your code here\n}",
+      testCases: [
+        { input: "[2,0,2,1,1,0]", output: "[0,0,1,1,2,2]" }
+      ]
+    },
+    {
+      title: "Stock Buy and Sell",
+      difficulty: "Easy",
+      category: "Arrays",
+      description: "Find the maximum profit you can achieve from a single buy and sell of stock.",
+      template: "int maxProfit(vector<int>& prices) {\n    // Your code here\n}",
+      testCases: [
+        { input: "[7,1,5,3,6,4]", output: "5" }
+      ]
+    }
   ]
 };
 
@@ -351,37 +464,89 @@ io.on('connection', (socket) => {
       rooms.set(roomId, {
         language,
         participants: new Map(),
-        code: '// Start coding here...',
+        userCode: new Map(),
         host: socket.id,
-        whiteboardObjects: []
+        whiteboardObjects: [],
+        viewingStates: new Map() // Track what each user is viewing
       });
     }
 
     const room = rooms.get(roomId);
     room.participants.set(socket.id, username);
+    
+    // Initialize user's code if not exists
+    if (!room.userCode.has(socket.id)) {
+      room.userCode.set(socket.id, '// Start coding here...');
+    }
+
+    // Set initial viewing state to own code
+    room.viewingStates.set(socket.id, socket.id);
 
     // Send current room state to the joining user
     socket.emit('room-state', {
       language: room.language,
-      code: room.code,
-      participants: Array.from(room.participants.values()),
-      isHost: socket.id === room.host
+      code: room.userCode.get(socket.id),
+      participants: Array.from(room.participants.entries()).map(([id, name]) => ({
+        id,
+        name,
+        isHost: id === room.host
+      })),
+      isHost: socket.id === room.host,
+      viewingUserId: socket.id
     });
 
     // Notify others in the room
     socket.to(roomId).emit('user-joined', {
       userId: socket.id,
       username,
-      participants: Array.from(room.participants.values())
+      participants: Array.from(room.participants.entries()).map(([id, name]) => ({
+        id,
+        name,
+        isHost: id === room.host
+      }))
     });
   });
 
-  socket.on('code-change', ({ roomId, code }) => {
-    if (rooms.has(roomId)) {
-      const room = rooms.get(roomId);
-      room.code = code;
-      socket.to(roomId).emit('code-update', code);
+  socket.on('code-change', ({ roomId, code, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isHost = room.host === socket.id;
+    const username = room.participants.get(socket.id);
+    if (!username) return;
+    // Only allow code change if host or editing own IDE
+    const editUserId = isHost ? (targetUserId || socket.id) : socket.id;
+    if (isHost || room.viewingStates.get(socket.id) === socket.id) {
+      // Store the code for the correct user
+      room.userCode.set(editUserId, code);
+      // Get all users who are currently viewing this user's code
+      const viewers = Array.from(room.viewingStates.entries())
+        .filter(([_, viewingId]) => viewingId === editUserId)
+        .map(([userId]) => userId);
+      // Broadcast to all viewers (including self for instant sync)
+      viewers.forEach(viewerId => {
+        io.to(viewerId).emit('code-update', {
+          userId: editUserId,
+          code: code
+        });
+      });
     }
+  });
+
+  socket.on('view-user-code', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    // Allow all users to view any IDE
+    room.viewingStates.set(socket.id, targetUserId);
+    const targetCode = room.userCode.get(targetUserId) || '// Start coding here...';
+    socket.emit('code-update', {
+      userId: targetUserId,
+      code: targetCode
+    });
+    // Notify others about the view change
+    socket.to(roomId).emit('view-state-changed', {
+      userId: socket.id,
+      viewingUserId: targetUserId
+    });
   });
 
   socket.on('chat-message', ({ roomId, message }) => {
@@ -422,12 +587,17 @@ io.on('connection', (socket) => {
     if (room && room.participants.has(socket.id)) {
       const username = room.participants.get(socket.id);
       room.participants.delete(socket.id);
+      room.viewingStates.delete(socket.id);
       socket.leave(roomId);
       
       io.to(roomId).emit('user-left', {
         userId: socket.id,
         username,
-        participants: Array.from(room.participants.values())
+        participants: Array.from(room.participants.entries()).map(([id, name]) => ({
+          id,
+          name,
+          isHost: id === room.host
+        }))
       });
 
       // Clean up empty rooms
@@ -573,27 +743,25 @@ io.on('connection', (socket) => {
     socket.emit('pong');
   });
 
-  socket.on('whiteboard-draw', ({ roomId, canvasState }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      room.whiteboardState = canvasState;
-      socket.to(roomId).emit('whiteboard-draw', { canvasState });
-    }
+  socket.on('user-joined', ({ participants }) => {
+    // Always send consistent participant structure
+    io.emit('user-joined', {
+      participants: Array.from(room.participants.entries()).map(([id, name]) => ({
+        id,
+        name,
+        isHost: id === room.host
+      }))
+    });
   });
 
-  socket.on('whiteboard-clear', ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      room.whiteboardState = null;
-      socket.to(roomId).emit('whiteboard-clear');
-    }
-  });
-
-  socket.on('get-whiteboard-state', ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room && room.whiteboardState) {
-      socket.emit('whiteboard-state', { canvasState: room.whiteboardState });
-    }
+  socket.on('user-left', ({ participants }) => {
+    io.emit('user-left', {
+      participants: Array.from(room.participants.entries()).map(([id, name]) => ({
+        id,
+        name,
+        isHost: id === room.host
+      }))
+    });
   });
 });
 

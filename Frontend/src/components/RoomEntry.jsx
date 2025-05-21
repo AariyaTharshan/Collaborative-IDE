@@ -105,7 +105,7 @@ const RoomEntry = ({ onJoinRoom }) => {
       <div className="w-11/12 max-w-md space-y-6 relative z-10">
         <div className="text-center space-y-3">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-[#FFA116] to-[#FF6B6B] text-transparent bg-clip-text">
-            CodeCollab
+            CollabCode IDE
           </h1>
           <p className="text-[#FFA116] text-lg font-medium">
             Real-time Collaborative Coding
@@ -181,6 +181,7 @@ const RoomEntry = ({ onJoinRoom }) => {
                   <option value="python">Python</option>
                   <option value="cpp">C++</option>
                   <option value="java">Java</option>
+                  <option value="c">C</option>
                 </select>
               </div>
             )}

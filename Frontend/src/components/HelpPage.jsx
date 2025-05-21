@@ -114,6 +114,38 @@ const SNIPPETS = {
       description: 'Class definition',
       code: 'public class ${1:ClassName} {\n    ${2:// code here}\n}'
     }
+  ],
+  c: [
+    {
+      trigger: 'main',
+      description: 'C main function',
+      code: '#include <stdio.h>\n\nint main() {\n    // Your code here\n    return 0;\n}'
+    },
+    {
+      trigger: 'printf',
+      description: 'Print to console',
+      code: 'printf("%s\\n", ${1:value});'
+    },
+    {
+      trigger: 'for',
+      description: 'For loop',
+      code: 'for(int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n    ${3:// code here}\n}'
+    },
+    {
+      trigger: 'll',
+      description: 'Singly Linked List Node',
+      code: 'struct Node {\n    int data;\n    struct Node* next;\n};'
+    },
+    {
+      trigger: 'fileio',
+      description: 'File I/O',
+      code: 'FILE *fptr = fopen("file.txt", "w");\nif (fptr) {\n    fprintf(fptr, "Hello, file!\\n");\n    fclose(fptr);\n}'
+    },
+    {
+      trigger: 'bubble',
+      description: 'Bubble Sort',
+      code: 'void bubbleSort(int arr[], int n) {\n    for (int i = 0; i < n-1; i++) {\n        for (int j = 0; j < n-i-1; j++) {\n            if (arr[j] > arr[j+1]) {\n                int temp = arr[j];\n                arr[j] = arr[j+1];\n                arr[j+1] = temp;\n            }\n        }\n    }\n}'
+    }
   ]
 };
 
@@ -217,6 +249,40 @@ const HelpPage = ({ isOpen, onClose }) => {
                   </ul>
                 </div>
               </div>
+            </div>
+
+            {/* DSA Concepts Section */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-[#FFA116]">
+                Basic DSA Concepts
+              </h3>
+              <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
+                <li><b>Array:</b> A collection of elements stored at contiguous memory locations. Supports random access.</li>
+                <li><b>Linked List:</b> A linear data structure where each element points to the next. Good for insertions/deletions.</li>
+                <li><b>Stack:</b> LIFO (Last-In, First-Out) structure. Supports push and pop operations.</li>
+                <li><b>Queue:</b> FIFO (First-In, First-Out) structure. Supports enqueue and dequeue operations.</li>
+                <li><b>Tree:</b> Hierarchical structure with nodes. Binary trees, BSTs, and heaps are common types.</li>
+                <li><b>Graph:</b> Set of nodes (vertices) connected by edges. Can be directed/undirected, weighted/unweighted.</li>
+                <li><b>Hash Table:</b> Stores key-value pairs for fast lookup, insertion, and deletion.</li>
+                <li><b>Recursion:</b> A function calling itself to solve subproblems.</li>
+                <li><b>Dynamic Programming:</b> Solving problems by combining solutions to subproblems, often using memoization.</li>
+                <li><b>Greedy Algorithm:</b> Makes the locally optimal choice at each step, hoping for a global optimum.</li>
+                <li><b>Binary Search:</b> Efficiently finds an element in a sorted array by repeatedly dividing the search interval in half.</li>
+              </ul>
+            </div>
+
+            {/* Striver's Sheet Section */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-[#FFA116]">
+                Striver's Sheet (Sample)
+              </h3>
+              <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
+                <li><b>Set Matrix Zeroes:</b> Given an m x n integer matrix, if an element is 0, set its entire row and column to 0.</li>
+                <li><b>Pascal's Triangle:</b> Given an integer numRows, return the first numRows of Pascal's triangle.</li>
+                <li><b>Next Permutation:</b> Rearrange numbers into the lexicographically next greater permutation.</li>
+                <li><b>Sort Colors:</b> Sort an array with n objects colored red, white, or blue in-place.</li>
+                <li><b>Stock Buy and Sell:</b> Find the maximum profit from a single buy and sell of stock.</li>
+              </ul>
             </div>
           </div>
         </div>
