@@ -6,6 +6,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 
 const app = express();
 const server = http.createServer(app);
@@ -20,11 +22,12 @@ const io = new Server(server, {
     credentials: true,
     transports: ['websocket', 'polling']
   },
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  upgradeTimeout: 30000,
+  pingTimeout: 30000,
+  pingInterval: 10000,
+  upgradeTimeout: 20000,
   allowUpgrades: true,
-  cookie: false
+  cookie: false,
+  maxHttpBufferSize: 1e8
 });
 
 const rooms = new Map(); // Store room information
@@ -43,7 +46,27 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Add this to your server.js
+// Add rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+
+app.use(limiter);
+
+// Add compression
+app.use(compression());
+
+// Add caching headers middleware
+const cacheControl = (req, res, next) => {
+  // Cache static assets for 1 day
+  if (req.url.match(/\.(css|js|jpg|jpeg|png|gif|ico|svg)$/)) {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+  }
+  next();
+};
+app.use(cacheControl);
+
 const codeTemplates = {
   cpp: {
     basic: `#include <bits/stdc++.h>
@@ -258,12 +281,12 @@ app.post('/compile', async (req, res) => {
   }
 });
 
-// Add this near your other endpoints
+// other endpoints
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Add new endpoint to get templates
+// endpoint to get templates
 app.get('/templates/:language', (req, res) => {
   const { language } = req.params;
   if (codeTemplates[language]) {
@@ -273,7 +296,7 @@ app.get('/templates/:language', (req, res) => {
   }
 });
 
-// Add problem categories and suggestions
+// problem categories and suggestions
 const problemSuggestions = {
   beginner: [
     {
@@ -287,7 +310,6 @@ const problemSuggestions = {
         { input: "[3,2,4], 6", output: "[1,2]" }
       ]
     }
-    // Add more problems...
   ],
   striver: [
     {
@@ -349,7 +371,7 @@ app.get('/problems/:difficulty', (req, res) => {
   res.json(problems);
 });
 
-// Add complexity analysis endpoint
+// complexity analysis endpoint
 app.post('/analyze', async (req, res) => {
   const { code, language } = req.body;
   
@@ -387,7 +409,6 @@ const learningResources = {
         }
       ]
     }
-    // Add more topics...
   ]
 };
 
@@ -397,7 +418,7 @@ app.get('/resources/:topic', (req, res) => {
   res.json(resources);
 });
 
-// Add test case generator
+// Test case generator
 app.post('/generate-tests', (req, res) => {
   const { type, params } = req.body;
   
